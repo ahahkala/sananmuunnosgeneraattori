@@ -73,11 +73,15 @@ muutos ei näy sivulla ennen `build_web_data.py`:tä.
 
 `web/worker.js`- ja `web/app.js`-muutokset eivät vaadi uudelleengenerointia.
 
-`web/data/*.gz` on **toistettava**: `build_web_data.py` pakkaa `mtime=0`:lla,
-joten sama syöte tuottaa aina samat tavut. Älä riko tätä – julkaisu-workflow
-(`.github/workflows/pages.yml`) rakentaa datan uudelleen ja vertaa sitä
-`git diff --exit-code`illa commitoituun. Jos generaattori muuttuu eikä
-`web/data/` ole ajan tasalla, julkaisu pysähtyy.
+**Älä vertaa pakattuja tavuja koneiden välillä.** gzipin tuloste riippuu
+zlibin versiosta, joten Windowsilla ja CI:n Ubuntulla pakatut `web/data/*.gz`
+eroavat tavutasolla vaikka sisältö olisi identtinen. `mtime=0` pitää tuloksen
+vakaana vain saman koneen ajojen välillä.
+
+Ajantasaisuuden tarkistaa `python tools/build_web_data.py --check`, joka
+purkaa julkaistut tiedostot ja vertaa **sisältöä** lähdeaineistoon.
+Julkaisu-workflow (`.github/workflows/pages.yml`) ajaa sen, joten jos muutat
+generaattoria etkä commitoi `web/data/`:ta, julkaisu pysähtyy.
 
 ## Testit – aja molemmat ennen kuin ilmoitat työn valmiiksi
 
