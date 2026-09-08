@@ -1,0 +1,39 @@
+# --- Generoidut välitiedostot ------------------------------------------
+# build/ rakentuu komennolla:
+#   python tools/parse_joukahainen.py && python tools/generate.py
+# lemmas.json 2,5 Mt, wordforms.txt 15 Mt - ei kuulu versionhallintaan.
+/build/
+
+# HUOM: web/data/ (n. 490 kt) on tarkoituksella versionhallinnassa, jotta
+# web/-hakemiston voi julkaista sellaisenaan staattisena sivuna. Jos haluat
+# rakentaa sen aina itse, poista kommentti seuraavilta riveiltä:
+# /web/data/*.gz
+# /web/data/meta.json
+
+# --- Kehityksen aikaiset ------------------------------------------------
+# kuvakaappaukset selaintarkistuksista
+.shots/
+# Chromen --user-data-dir CDP-ajoissa
+chrome-profile/
+*.log
+*.tmp
+
+# --- Python -------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# --- Node ---------------------------------------------------------------
+node_modules/
+
+# --- Editorit ja käyttöjärjestelmät -------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Claude Code --------------------------------------------------------
+.claude/settings.local.json
