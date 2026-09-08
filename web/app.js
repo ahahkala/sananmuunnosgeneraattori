@@ -29,9 +29,7 @@ worker.onmessage = (ev) => {
     $status.innerHTML = '<b>' + m.count.toLocaleString('fi-FI') +
       '</b> sanamuotoa ladattu. Kirjoita sana yllä.';
     requestExamples();
-    if ($q.value.trim()) run();
-    const hash = decodeURIComponent(location.hash.slice(1));
-    if (hash && !$q.value) { $q.value = hash; run(); }
+    if (!applyHash() && $q.value.trim()) run();
   } else if (m.type === 'examples') {
     showExamples(m.words);
   } else if (m.type === 'error') {
@@ -160,6 +158,20 @@ function appendMore() {
       last.total.toLocaleString('fi-FI') + ':stä.';
   }
 }
+
+// Osoitepalkin #-osa on jaettava linkki hakuun. Sen muokkaaminen käsin - tai
+// selaimen edestakaisin selaaminen - on sama asia kuin sanan kirjoittaminen
+// kenttään, joten kenttä ja tulokset seuraavat mukana.
+function applyHash() {
+  const h = decodeURIComponent(location.hash.slice(1)).trim();
+  if (h.toLowerCase() === $q.value.trim().toLowerCase()) return !!h;
+  $q.value = h;
+  clearTimeout(timer);
+  run();
+  return !!h;
+}
+
+window.addEventListener('hashchange', applyHash);
 
 $more.onclick = appendMore;
 $q.addEventListener('input', schedule);
