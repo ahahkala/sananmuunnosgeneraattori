@@ -33,12 +33,16 @@ function post(m) { self.postMessage(m); }
 async function loadGz(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(url + ': ' + res.status);
+  const buf = new Uint8Array(await res.arrayBuffer());
+  // Osa staattisista palvelimista tarjoaa .gz-tiedoston otsakkeella
+  // Content-Encoding: gzip, jolloin selain on purkanut sen jo valmiiksi.
+  // Puretaan siis vain, jos data alkaa gzip-tunnisteella 1f 8b.
+  if (buf.length < 2 || buf[0] !== 0x1f || buf[1] !== 0x8b) return buf;
   if (typeof DecompressionStream === 'undefined') {
     throw new Error('Selain ei tue DecompressionStream-rajapintaa.');
   }
-  const stream = res.body.pipeThrough(new DecompressionStream('gzip'));
-  const buf = await new Response(stream).arrayBuffer();
-  return new Uint8Array(buf);
+  const stream = new Response(buf).body.pipeThrough(new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 function setupAlphabet(alphabet) {

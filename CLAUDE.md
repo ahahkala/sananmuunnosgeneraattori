@@ -73,6 +73,12 @@ muutos ei näy sivulla ennen `build_web_data.py`:tä.
 
 `web/worker.js`- ja `web/app.js`-muutokset eivät vaadi uudelleengenerointia.
 
+`web/data/*.gz` on **toistettava**: `build_web_data.py` pakkaa `mtime=0`:lla,
+joten sama syöte tuottaa aina samat tavut. Älä riko tätä – julkaisu-workflow
+(`.github/workflows/pages.yml`) rakentaa datan uudelleen ja vertaa sitä
+`git diff --exit-code`illa commitoituun. Jos generaattori muuttuu eikä
+`web/data/` ole ajan tasalla, julkaisu pysähtyy.
+
 ## Testit – aja molemmat ennen kuin ilmoitat työn valmiiksi
 
 ```bash

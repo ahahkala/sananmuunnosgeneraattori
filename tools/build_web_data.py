@@ -48,8 +48,12 @@ def main():
 
     for name, data in (('words.bin', bytes(buf)), ('flags.bin', bytes(flags))):
         path = os.path.join(OUT, name + '.gz')
-        with gzip.open(path, 'wb', 9) as f:
-            f.write(data)
+        # mtime=0 ja tyhjä filename: sama syöte tuottaa aina samat tavut,
+        # jolloin web/data/ voidaan tarkistaa versionhallintaa vasten CI:ssä.
+        with open(path, 'wb') as raw:
+            with gzip.GzipFile(filename='', mode='wb', compresslevel=9,
+                               fileobj=raw, mtime=0) as f:
+                f.write(data)
         print('%-11s %8d -> %7d' % (name, len(data), os.path.getsize(path)))
 
     meta = {'alphabet': alphabet, 'count': len(rows),

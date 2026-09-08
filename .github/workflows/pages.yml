@@ -1,0 +1,61 @@
+# Julkaisee web/-hakemiston GitHub Pagesiin.
+#
+# Sivu on täysin staattinen: sanasto on valmiiksi pakattuna versionhallinnassa
+# (web/data/*.gz), joten julkaisu ei aja Python-putkea. Jos muutat
+# tools/-hakemiston generaattoreita, aja tools/build_web_data.py paikallisesti
+# ja commitoi web/data/ ennen pushia.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Varmistaa, ettei web/data/ ole päässyt vanhentumaan generaattoreihin
+      # nähden: rakennetaan uudelleen ja verrataan commitoituun.
+      - name: Tarkista että web/data vastaa lähdeaineistoa
+        run: |
+          python tools/parse_joukahainen.py
+          python tools/generate.py
+          python tools/build_web_data.py
+          git diff --exit-code -- web/data || {
+            echo "::error::web/data/ ei vastaa vendor/joukahainen.xml:ää ja tools/-generaattoreita."
+            echo "Aja tools/build_web_data.py paikallisesti ja commitoi web/data/."
+            exit 1
+          }
+
+      - name: Testit
+        run: |
+          python tools/test_morph.py
+          node tools/test_search.mjs > /dev/null
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4
