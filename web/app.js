@@ -28,10 +28,12 @@ worker.onmessage = (ev) => {
     $q.focus();
     $status.innerHTML = '<b>' + m.count.toLocaleString('fi-FI') +
       '</b> sanamuotoa ladattu. Kirjoita sana yllä.';
-    showExamples();
+    requestExamples();
     if ($q.value.trim()) run();
     const hash = decodeURIComponent(location.hash.slice(1));
     if (hash && !$q.value) { $q.value = hash; run(); }
+  } else if (m.type === 'examples') {
+    showExamples(m.words);
   } else if (m.type === 'error') {
     $status.innerHTML = '<span class="warn">Virhe: ' + esc(m.text) + '</span>';
   } else if (m.type === 'results') {
@@ -40,11 +42,15 @@ worker.onmessage = (ev) => {
   }
 };
 
-const EXAMPLES = ['kissa', 'kahvi', 'pöytä', 'ilta', 'talossa', 'nähdä', 'juokseminen'];
+// Esimerkkisanat arvotaan sanastosta joka kerta, kun ne tulevat näkyviin.
+// Worker varmistaa, että jokainen ehdotus tuottaa oikeasti tuloksia.
+function requestExamples() {
+  worker.postMessage({ type: 'examples', count: 7, min: 25 });
+}
 
-function showExamples() {
+function showExamples(words) {
   $examples.innerHTML = '';
-  for (const w of EXAMPLES) {
+  for (const w of words) {
     const b = document.createElement('button');
     b.textContent = w;
     b.onclick = () => { $q.value = w; $q.focus(); run(); };
@@ -72,6 +78,7 @@ function run() {
     $more.hidden = true;
     $hint.hidden = true;
     $examples.style.display = '';
+    requestExamples();
     $status.innerHTML = 'Kirjoita sana yllä.';
     return;
   }

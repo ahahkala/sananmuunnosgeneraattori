@@ -14,7 +14,8 @@
 var A = '';           // aakkosto
 var codes = null;     // kaikki sanat peräkkäin, 1 tavu / kirjain
 var offs = null;      // sanan i alku = offs[i], loppu = offs[i+1]
-var flags = null;     // 1 = perusmuoto, 2 = ei erisnimi, 4 = yleiskielinen
+var flags = null;     // 1 = perusmuoto, 2 = ei erisnimi, 4 = yleiskielinen,
+                      // 8 = kelpaa esimerkkisanaksi
 var vpos = null;      // ensimmäisen vokaalin sijainti sanan sisällä
 var vlen = null;      // ensimmäisen vokaalin kesto (1 tai 2)
 var N = 0;
@@ -333,6 +334,38 @@ function search(text, opts) {
   return { results, total };
 }
 
+/* Esimerkkiehdokkaat: arkipituiset yleiskieliset perusmuodot, joita kehtaa
+   näyttää kenelle tahansa. Rakennetaan kerran, jotta otanta osuu aina. */
+var examplePool = null;
+
+function buildExamplePool() {
+  const pick = [];
+  for (let i = 0; i < N; i++) {
+    if ((flags[i] & 15) !== 15) continue;
+    const len = offs[i + 1] - offs[i];
+    if (len < 5 || len > 10) continue;       // arkisanan mitta
+    pick.push(i);
+  }
+  examplePool = Uint32Array.from(pick);
+}
+
+/* Poimi satunnaisia perusmuotoja esimerkeiksi. Ehdokkaan on tuotettava
+   tuloksia, muuten esimerkin klikkaaminen päätyisi tyhjään näkymään. */
+function randomExamples(count, minResults) {
+  if (!examplePool) buildExamplePool();
+  const out = [];
+  const seen = new Set();
+  for (let tries = 0; out.length < count && tries < count * 12; tries++) {
+    const w = wordStr(examplePool[(Math.random() * examplePool.length) | 0]);
+    if (seen.has(w)) continue;
+    seen.add(w);
+    const r = search(w, { noProper: true, limit: 1 });
+    if (r.error || r.total < minResults) continue;
+    out.push(w);
+  }
+  return out;
+}
+
 function lookupExact(text) {
   const q = toCodes(text.trim().toLowerCase());
   if (!q) return false;
@@ -356,6 +389,8 @@ self.onmessage = function (ev) {
   const msg = ev.data;
   if (msg.type === 'init') {
     init().catch((err) => post({ type: 'error', text: String(err.message || err) }));
+  } else if (msg.type === 'examples') {
+    post({ type: 'examples', words: randomExamples(msg.count || 7, msg.min || 25) });
   } else if (msg.type === 'query') {
     const t0 = performance.now();
     let res;

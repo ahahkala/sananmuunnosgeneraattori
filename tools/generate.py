@@ -229,6 +229,17 @@ def compound_harmony(lemma, lemmaset):
     return None
 
 
+# Hausta ei suodateta mitään: karkeat sanat ovat sananmuunnosten ydinainesta.
+# Sivun automaattisista esimerkkiehdotuksista jätetään pois vain etniset ja
+# vastaavat halventavat nimitykset - ne näytetään jokaiselle kävijälle
+# pyytämättä, eikä sanaston satunnaisotanta ole niille oikea paikka. Lista ei
+# ole kattava; se kattaa Joukahaisen inappropriate-merkityt sekä sanastosta
+# löytyvät yleisimmät.
+EXAMPLE_BLOCK = {
+    'neekeri', 'ryssä', 'ryssäläinen', 'japsi', 'manne', 'mantu', 'hurri',
+    'mustalainen', 'hintti',
+}
+
 CLEAN = re.compile(r'^[a-zåäöéšž]+$')
 SKIP_WCLASS = {'abbreviation', 'prefix'}
 BASE_ONLY = {'adverb', 'interjection', 'conjunction'}
@@ -266,7 +277,8 @@ def forms_for(lemma, cls, is_verb):
 def main():
     entries = json.load(open(os.path.join(ROOT, 'build', 'lemmas.json'),
                              encoding='utf-8'))
-    # sana -> lippubitit: 1 = perusmuoto, 2 = ei erisnimi, 4 = yleiskielinen
+    # lippubitit: 1 = perusmuoto, 2 = ei erisnimi, 4 = yleiskielinen,
+    #             8 = kelpaa esimerkkisanaksi
     words = {}
 
     def add(w, flags):
@@ -297,6 +309,8 @@ def main():
         common = 0 if wcs and wcs <= PROPER else 2
         if not (styles & {'dialect', 'old'}):
             common |= 4
+        if lemma not in EXAMPLE_BLOCK:
+            common |= 8       # kelpaa sivun automaattiseksi esimerkkisanaksi
         add(lemma, 1 | common)
         if wcs & BASE_ONLY and not (wcs - BASE_ONLY):
             continue

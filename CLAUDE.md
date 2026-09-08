@@ -132,8 +132,15 @@ Kolme paikkaa koodaavat samaa asiaa. Jos muutat yhtä, muuta muut:
 
 1. **Lippubitit.** `tools/generate.py` kirjoittaa ne, `tools/build_web_data.py`
    pakkaa ja `web/worker.js` lukee: `1` = perusmuoto, `2` = ei erisnimi,
-   `4` = yleiskielinen (ei `dialect`/`old`). `incorrect`-tyyliset sanat
+   `4` = yleiskielinen (ei `dialect`/`old`), `8` = kelpaa sivun automaattiseksi
+   esimerkkisanaksi (ei `EXAMPLE_BLOCK`-listalla). `incorrect`-tyyliset sanat
    pudotetaan kokonaan jo generoinnissa.
+
+   Bitti `8` koskee vain esimerkkiehdotuksia, ei hakua. Haku ei suodata
+   mitään: karkeat sanat ovat sananmuunnosten ydinainesta. Esimerkeistä
+   jätetään pois vain `generate.py`:n `EXAMPLE_BLOCK`, eli halventavat
+   nimitykset.
+   Esimerkit sen sijaan näytetään kaikille kysymättä, joten ne suodatetaan.
 2. **Aakkosto.** `build_web_data.py` kirjoittaa `web/data/meta.json`:iin
    aakkoston; `worker.js` rakentaa siitä vokaali- ja sointutaulut. Jos
    sanastoon tulee uusia merkkejä, molemmat mukautuvat automaattisesti, mutta
