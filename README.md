@@ -12,13 +12,20 @@ pöytä  lilja   →   liuta  pöljä
 nähdä  teko    →   tehdä  näkö
 ```
 
+**Demo: <https://ahahkala.github.io/sananmuunnosgeneraattori/>**
+
+Hakusana tallentuu osoitteen `#`-osaan, joten yksittäiseen hakuun voi linkata
+suoraan: <https://ahahkala.github.io/sananmuunnosgeneraattori/#kissa>.
+
 Kaikki neljä sanaa (lähtösana, parisana ja molemmat tulokset) tarkistetaan
 n. **993 000 sanamuodon** sanastosta, joka on generoitu Joukahaisen
 perusmuodoista ja taivutusluokista.
 
-## Käynnistys
+## Käynnistys paikallisesti
 
-Sivu tarvitsee HTTP-palvelimen (`fetch` ei toimi `file://`-osoitteesta).
+Sivu on täysin staattinen – `web/`-hakemiston voi julkaista sellaisenaan;
+GitHub Pages -julkaisun hoitaa [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
+Paikallisesti sivu tarvitsee HTTP-palvelimen (`fetch` ei toimi `file://`-osoitteesta).
 
 ```
 start.cmd            # Windows: käynnistää palvelimen ja avaa selaimen
