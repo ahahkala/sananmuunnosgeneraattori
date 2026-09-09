@@ -108,6 +108,7 @@ function run() {
       noProper: $noProper.checked,
       sort: $sort.value,
       prefix: cur.prefix,
+      compound: true,
       limit: 3000,
     },
   });
@@ -172,6 +173,18 @@ function render(m) {
       : ' – <span class="warn">ei yhtään sopimatonta sanaa</span>';
   }
   const filt = prefix ? ', joiden toinen sana alkaa <b>' + esc(prefix) + '</b>' : '';
+  if (m.compound) {
+    // Muunnos on tehty yhdyssanan alkuosalle ja loppuosa liitetty takaisin,
+    // joten tuloksen ensimmäinen sana on koottu - sitä ei ole sanastossa.
+    $status.innerHTML = 'Sanalle <b>' + esc(q) + '</b> ei löydy suoraa paria. ' +
+      '<b>' + m.total.toLocaleString('fi-FI') + '</b> sananmuunnosta yhdyssanan alkuosalle (' +
+      m.compound.map((x) => '<b>' + esc(x) + '</b>').join(', ') + ')' + filt +
+      ' <span style="opacity:.6">(' + m.ms + ' ms)</span><br>' +
+      '<span class="warn">Loppuosa liitetään takaisin sellaisenaan, joten tuloksen ' +
+      'ensimmäinen sana on koottu yhdyssana – sitä ei ole tarkistettu sanastosta.</span>';
+    appendMore();
+    return;
+  }
   $status.innerHTML = '<b>' + m.total.toLocaleString('fi-FI') + '</b> sananmuunnosta sanalle <b>' +
     esc(q) + '</b>' + filt + extra + ' <span style="opacity:.6">(' + m.ms + ' ms)</span>' + known;
   appendMore();
@@ -189,7 +202,9 @@ function appendMore() {
     row.innerHTML =
       '<div class="src">' + esc(q) + ' &nbsp;' + esc(r.b) + '</div>' +
       '<div class="arrow">→</div>' +
-      '<div class="res">' + esc(r.r1) + ' &nbsp;<span class="w2">' + esc(r.r2) + '</span>' +
+      '<div class="res">' + esc(r.r1) +
+        (r.suf ? '<span class="glue">' + esc(r.suf) + '</span>' : '') +
+        ' &nbsp;<span class="w2">' + esc(r.r2) + '</span>' +
       (r.proper ? '<span class="tag">erisnimi</span>' : '') + '</div>';
     frag.appendChild(row);
   }

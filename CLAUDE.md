@@ -118,7 +118,9 @@ muuten testi vain sementoi bugin.
 
 `test_search.mjs` ajaa `web/worker.js`:n Nodessa (stubattu `fetch`/`self`) ja
 tarkistaa jokaisesta hakutuloksesta sananmuunnoksen säännöt sekä sen, että
-kaikki neljä sanaa löytyvät sanastosta. Se on rakenteellinen tarkistus: se ei
+kaikki neljä sanaa löytyvät sanastosta. Se tarkistaa myös parisanan
+alkurajauksen (`kissa laa`) ja yhdyssanahaun rakenteen - muttei sitä, onko
+koottu yhdyssana oikeaa suomea. Se on rakenteellinen tarkistus: se ei
 huomaa, jos itse sanasto sisältää virheellisen muodon.
 
 ## Sivun ajaminen selaimessa
@@ -225,6 +227,65 @@ tarkoituksella **tarkkuus edellä**: se vaatii, että loppuosa on kuratoidulta
 varmuutta, sitä ei generoida. Väärä muoto vuotaa hakutuloksiin sanana, jota ei
 ole olemassa – se rikkoo koko tuotteen lupauksen. Esim. `asema`-luokan
 O-monikko (`asemoita`) jätettiin pois, mutta `peruna`/`pasuuna` säilyttivät sen.
+
+## Yhdyssanahaku ja sen tunnetut virheet
+
+`web/worker.js`:n `search()` yrittää yhdyssanajakoa, kun suora haku antaa
+**nolla osumaa** ja `opts.compound` on päällä. Muunnos tehdään yhdyssanan
+alkuosalle ja loppuosa liitetään takaisin R1:een:
+`esimies todistaa → tosimies edistää`.
+
+Miksi: yhdyssanat olivat aiemmin poikkeuksetta umpikuja. Ei siksi, ettei
+hakusanaa tunnisteta (moottori ei vaadi hakusanaa sanastosta), vaan siksi että
+R1 olisi sanastosta puuttuva yhdyssana - `tosimies`, `marjakauppa` ja
+`joulubussi` eivät ole sanastossa. Mitatusti jokainen kokeiltu yhdyssana antoi
+nolla osumaa ennen tätä ja tuhansia sen jälkeen.
+
+Jakoehdot (`splitPoints`): loppuosan on löydyttävä sanastosta ja oltava
+vähintään `MIN_SUFFIX` (3) merkkiä, ja alkuosaan on jäätävä vähintään yksi
+merkki ensimmäisen vokaalin jälkeen. **Kaikki** kelvolliset jakokohdat
+kokeillaan ja tulokset yhdistetään (avain: parisana + R1 + loppuosa).
+Kustannus on 1-3 hakua, mitattuna 2-30 ms, ja vain nollaosumaisille kyselyille.
+
+Mikä säilyy taattuna: parisana, R1:n alkuosa ja R2 ovat sanastossa, ja loppuosa
+on sanastossa oleva sanamuoto, joka otetaan hakusanasta sellaisenaan.
+Vokaalisointu ei riko liitosta, koska yhdyssanan osat soinnuttuvat toisistaan
+riippumatta. Vastauksessa **R1 on paljas ja loppuosa omassa `suf`-kentässään**;
+`app.js` yhdistää ne vasta näytettäessä ja `test_search.mjs` riisuu loppuosan
+ennen sääntötarkistusta. Älä yhdistä niitä workerissa - silloin ristiintarkistus
+alkaisi hyväksyä sanoja, joita ei ole sanastossa.
+
+**Tunnetut virhelähteet. Nämä ovat tietoisia myönnytyksiä, eivät korjattavia
+bugeja - älä "korjaa" niitä tarkistamatta, mitä korjaus kaataa mukanaan:**
+
+1. **Koottua yhdyssanaa ei ole tarkistettu mistään.** Se on ainoa kohta, jossa
+   sivu näyttää sanan, jota ei ole sanastossa. Suurin osa on ymmärrettäviä
+   (`sulkapallo`, `marjakauppa`, `lammasharja`), osa ei (`anomalehti`).
+   Statusrivi ja himmennetty loppuosa (`.res .glue`) kertovat tämän käyttäjälle.
+2. **Väärä jakokohta tuottaa oikeista sanoista koostuvaa hölynpölyä.**
+   `kesäloma` jakautuu myös muotoon `kesäl|oma`, joka antaa 563 osumaa tyyliin
+   `sisal + oma → sisaloma`. Alkuosaa **ei voi vaatia sanastosta**, koska juuri
+   toimivat tapaukset puuttuvat sieltä (`esi` on etuliite, `lento` puuttuu) -
+   siksi sanastosta löytyvä alkuosa saa vain +1 pistebonuksen lajitteluun.
+   Myöskään "pisin sanastosta löytyvä loppuosa" ei kelpaa säännöksi: se valitsee
+   `talv|isota`, `jääka|appi` ja `kaupunginjoht|aja` oikeiden jakojen sijaan.
+3. **R1:n alkuosa voi olla muoto, joka ei kelpaa yhdyssanan alkuosaksi.**
+   `olutpullo → kälytpullo`: monikon nominatiivi ei voi olla yhdyssanan
+   alkuosana. Tämä seuraa suoraan siitä, että R1 perii hakusanan alkuosan lopun,
+   eikä sitä voi rajata rikkomatta toimivia tapauksia.
+4. **Saumaa heti ensitavun jälkeen ei tueta.** `jää|kaappi`, `yö|paita`:
+   alkuosaan ei jäisi häntää lainkaan, jolloin R1 olisi pelkkä pää (`ta`, `no`)
+   eikä sellaisia sanoja ole sanastossa. `jääkaappi` päätyy siksi heikkoon
+   jakoon `jääka|appi` → `laakaappi`.
+5. **Vain R1 saa loppuosan.** Peilitapaus - parisana on yhdyssana, jolloin R2
+   olisi uusi yhdyssana - vaatisi yhdyssanatietoisen indeksin eikä ratkea tällä.
+6. **Liput luetaan paljaasta R1:stä.** `piilota erisnimet`, `vain perusmuodot`
+   ja karkeusbitti katsovat alkuosan sanaa; liitetty loppuosa ei vaikuta
+   suodatukseen eikä lajitteluun. Karkea loppuosa ei siis nosta osumaa
+   "sopimattomat ensin" -järjestyksessä.
+7. **Kaikki ei ratkea.** `aurinkorasva` löytää jaon `aurinko|rasva`, mutta
+   osumia ei tule, koska `urinko`-häntäisiä sanoja ei ole. Nollatulos on
+   edelleen mahdollinen ja normaali.
 
 ## Mitä lähdedatassa on
 

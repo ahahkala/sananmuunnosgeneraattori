@@ -248,7 +248,9 @@ function toCodes(text) {
   return out;
 }
 
-function search(text, opts) {
+/* Kerää yhden hakusanan osumat lajittelemattomina. Erillään search():sta,
+   koska yhdyssanahaku yhdistää useamman alkuosan tulokset ennen lajittelua. */
+function collect(text, opts) {
   const q = toCodes(text.trim());
   if (!q || q.length < 2) return { error: 'short' };
   let j = 0;
@@ -265,7 +267,7 @@ function search(text, opts) {
   // Toinen hakusana rajaa parisanan alkukirjaimet ("kissa kau"). Tuntematon
   // merkki etuliitteessä ei voi osua mihinkään sanaan.
   const pre = opts.prefix ? toCodes(opts.prefix) : null;
-  if (opts.prefix && !pre) return { results: [], total: 0 };
+  if (opts.prefix && !pre) return { out: [] };
 
   // R1-ehdokkaat: sanat, joilla on lähtösanan häntä (ja sama vokaalin kesto)
   const heads = new Map();          // head-gid -> [sanaindeksit]
@@ -292,7 +294,7 @@ function search(text, opts) {
       if (l) l.push(y); else tails.set(g, [y]);
     }
   }
-  if (!heads.size || !tails.size) return { results: [], total: 0 };
+  if (!heads.size || !tails.size) return { out: [] };
 
   // Käy läpi se puoli, jonka kautta ehdokkaita on vähemmän.
   let costH = 0, costT = 0;
@@ -344,6 +346,74 @@ function search(text, opts) {
                   typical(w) + typical(r1) * 0.5 + typical(r2) * 0.5;
     out.push({ w, r1, r2, score });
   }
+  return { out };
+}
+
+/* Yhdyssanan jakokohdat. Ehtoja on kaksi: loppuosan on löydyttävä sanastosta
+   (vähintään MIN_SUFFIX merkkiä) ja alkuosaan on jäätävä päätä pidemmälti,
+   koska R1:n alkuosa tarkistetaan sanastosta - pelkkää päätä ("ta", "no")
+   vastaavia sanoja ei ole. Siksi esim. "jää|kaappi" ei kelpaa jakokohdaksi.
+   Kaikki kelvolliset kohdat kokeillaan: pisin sanastosta löytyvä loppuosa on
+   usein väärä ("talv|isota", "jääka|appi"), mutta väärä jako ei yleensä tuota
+   osumia, koska R1:n alkuosan on silti oltava sanastossa oleva sana. */
+var MIN_SUFFIX = 3;
+
+function splitPoints(t) {
+  const out = [];
+  const q = toCodes(t);
+  if (!q) return out;
+  let j = 0;
+  while (j < q.length && !isVowel[q[j]]) j++;
+  if (j >= q.length) return out;
+  const he = j + ((j + 1 < q.length && q[j + 1] === q[j]) ? 2 : 1);
+  for (let p = he + 1; p <= t.length - MIN_SUFFIX; p++) {
+    if (lookupExact(t.slice(p))) out.push(p);
+  }
+  return out;
+}
+
+/* Haku yhdyssanan alkuosalla: muunnos tehdään alkuosalle ja loppuosa liitetään
+   sellaisenaan R1:een ("esimies todistaa -> tosimies edistää"). Pää on aina
+   alkuosassa, ja yhdyssanan osat soinnuttuvat toisistaan riippumatta, joten
+   loppuosan liittäminen sellaisenaan on soinnun kannalta turvallista.
+   Osumat pidetään paljaina: r1 on sanastossa oleva sana ja liitettävä loppuosa
+   on omassa kentässään, jotta ristiintarkistus pysyy mielekkäänä. */
+function compoundSearch(t, opts) {
+  const out = [], splits = [], seen = new Set();
+  for (const p of splitPoints(t)) {
+    const front = t.slice(0, p), suf = t.slice(p);
+    const r = collect(front, opts);
+    if (r.error || !r.out.length) continue;
+    // Jako, jonka alkuosakin on sanastossa ("talvi|sota"), on todennäköisemmin
+    // oikea kuin sattumalta osunut ("kesäl|oma") - pieni etu lajittelussa.
+    const bonus = lookupExact(front) ? 1 : 0;
+    let n = 0;
+    for (const e of r.out) {
+      const key = wordStr(e.w) + '|' + wordStr(e.r1) + suf;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      e.suf = suf;
+      e.score += bonus;
+      out.push(e);
+      n++;
+    }
+    if (n) splits.push(front + '|' + suf);
+  }
+  return { out, splits };
+}
+
+function search(text, opts) {
+  const t = text.trim().toLowerCase();
+  const first = collect(t, opts);
+  if (first.error) return { error: first.error };
+  let out = first.out;
+  let compound = null;
+  // Yhdyssana päätyy umpikujaan vain siksi, että R1 olisi sanastosta puuttuva
+  // yhdyssana. Alkuosaa kokeillaan siis vasta, kun suora haku ei anna mitään.
+  if (!out.length && opts.compound) {
+    const c = compoundSearch(t, opts);
+    if (c.splits.length) { out = c.out; compound = c.splits; }
+  }
   sortHits(out, opts.sort);
   const total = out.length;
   const limit = opts.limit || 400;
@@ -351,6 +421,7 @@ function search(text, opts) {
     b: wordStr(r.w),
     r1: wordStr(r.r1),
     r2: wordStr(r.r2),
+    suf: r.suf || '',
     base: !!(flags[r.w] & 1),
     proper: !(flags[r.w] & 2),
   }));
@@ -362,7 +433,7 @@ function search(text, opts) {
     rudeTotal = 0;
     while (rudeTotal < out.length && out[rudeTotal].rude) rudeTotal++;
   }
-  return { results, total, rudeTotal };
+  return { results, total, rudeTotal, compound };
 }
 
 /* Lajittelu tehdään ennen limit-rajausta, jotta valinta voi nostaa esiin myös

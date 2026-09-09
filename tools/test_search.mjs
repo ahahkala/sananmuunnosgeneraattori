@@ -32,6 +32,17 @@ const norm = (s) => s.replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/y/g, 'u')
 
 let bad = 0, checked = 0;
 function check(q, r) {
+  // Yhdyssanahaussa muunnos on tehty alkuosalle ja loppuosa liitetään R1:een
+  // vasta näytettäessä. Tarkistus tehdään siis alkuosaa vasten, ja loppuosalle
+  // erikseen: sen on oltava sanastossa ja hakusanan lopussa.
+  if (r.suf) {
+    if (!q.endsWith(r.suf) || !w.lookupExact(r.suf)) {
+      bad++;
+      console.log(`  VIRHE ${q}: kelvoton loppuosa ${r.suf}`);
+      return;
+    }
+    q = q.slice(0, q.length - r.suf.length);
+  }
   const a = split(q), b = split(r.b), x = split(r.r1), y = split(r.r2);
   const problems = [];
   // R1 = W:n pää + lähtösanan häntä (lähtösanan vokaalin kestolla)
@@ -91,6 +102,37 @@ for (const [q, pre] of [['kissa', 'ka'], ['talo', 'per'], ['pöytä', 'l'],
 }
 console.log(`rajaus: ${pbad} virhettä`);
 
+/* Yhdyssanan alkuosalla haku. Varauma: tämä tarkistaa rakenteen, ei sitä onko
+   koottu yhdyssana oikeaa suomea - ks. CLAUDE.md. */
+console.log('\n== yhdyssanan alkuosa ==');
+let cbad = 0;
+for (const q of ['esimies', 'talvisota', 'kirjakauppa', 'kissanruoka', 'kesäloma',
+                 'sähköposti', 'aurinkorasva', 'kissa']) {
+  const plain = w.search(q, { limit: 100000, noProper: true });
+  const r = w.search(q, { compound: true, limit: 100000, noProper: true });
+  const list = r.results || [];
+  const problems = [];
+  if (plain.total && r.total !== plain.total) problems.push('suora haku muuttui');
+  if (r.compound && plain.total) problems.push('varajako ajettiin vaikka suoria osumia oli');
+  for (const x of list) {
+    if (r.compound && !x.suf) { problems.push('osumasta puuttuu loppuosa'); break; }
+    if (!r.compound && x.suf) { problems.push('loppuosa ilman yhdyssanahakua'); break; }
+  }
+  for (const x of list) check(q, x);
+  if (problems.length) { cbad++; console.log(`  VIRHE ${q}: ${problems.join('; ')}`); }
+  const s0 = list[0];
+  console.log(`${q.padEnd(14)} ${String(r.total).padStart(6)} osumaa  jaot=[${(r.compound || []).join(' ')}]` +
+    (s0 ? `  esim: ${q} ${s0.b} -> ${s0.r1}${s0.suf} ${s0.r2}` : ''));
+}
+{
+  const r = w.search('esimies', { compound: true, limit: 100000, noProper: true });
+  const hit = (r.results || []).find((x) => x.b === 'todistaa');
+  const ok = hit && hit.r1 + hit.suf === 'tosimies' && hit.r2 === 'edistää';
+  if (!ok) cbad++;
+  console.log(`esimies todistaa -> tosimies edistää: ${ok ? 'ok' : 'PUUTTUU'}`);
+}
+console.log(`yhdyssanahaku: ${cbad} virhettä`);
+
 console.log('\n== näytteitä ==');
 for (const q of ['kissa', 'kahvi', 'pöytä', 'nähdä', 'ilta', 'yö']) {
   const r = w.search(q, { limit: 10, noProper: true, onlyBase: true });
@@ -99,4 +141,4 @@ for (const q of ['kissa', 'kahvi', 'pöytä', 'nähdä', 'ilta', 'yö']) {
     console.log(`   ${q} ${x.b}  →  ${x.r1} ${x.r2}`);
   }
 }
-process.exit(bad || pbad ? 1 : 0);
+process.exit(bad || pbad || cbad ? 1 : 0);
