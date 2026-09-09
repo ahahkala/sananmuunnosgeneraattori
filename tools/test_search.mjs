@@ -13,7 +13,7 @@ globalThis.self = { postMessage: () => {} };
 
 const src = fs.readFileSync(path.join(webdir, 'worker.js'), 'utf8');
 const mod = new Function('self', 'performance', 'DecompressionStream', 'Response', 'fetch',
-  src + '\n; return { search, lookupExact, init };');
+  src + '\n; return { search, lookupExact, splitPoints, init };');
 const w = mod(globalThis.self, performance, DecompressionStream, Response, globalThis.fetch);
 
 const t0 = Date.now();
@@ -133,6 +133,32 @@ for (const q of ['esimies', 'talvisota', 'kirjakauppa', 'kissanruoka', 'kesälom
 }
 console.log(`yhdyssanahaku: ${cbad} virhettä`);
 
+/* Sanaston pistokoe. Nämä muodot tulevat Joukahaisen <vtype>- ja
+   ei_ysj/ei_ys-merkinnöistä, joita generaattori ei muuten mistään tarkista:
+   ilman niitä sanastoon syntyy "cowboynä" ja yhdyssanahaku jakaa
+   "patriotism|ien". Sääntötarkistin ei huomaa kumpaakaan, koska molemmat ovat
+   rakenteellisesti kelvollisia - vain sisältö on väärin. */
+console.log('\n== sanaston pistokoe ==');
+let vbad = 0;
+for (const [word, want] of [['cowboyna', true], ['cowboynä', false],
+                            ['playboyta', true], ['playboytä', false],
+                            ['designereina', true], ['designereinä', false],
+                            ['doyleilla', true], ['doyleillä', false]]) {
+  const got = w.lookupExact(word);
+  if (got !== want) { vbad++; console.log(`  VIRHE ${word}: ${got} != ${want}`); }
+}
+console.log(`vokaalisointu (vtype): ${vbad} virhettä`);
+let sbad = 0;
+for (const [q, banned, kept] of [['patriotismien', 'ien', null],
+                                 ['kerrotunlaisesta', 'laisesta', null],
+                                 ['kesäloma', 'ien', 'loma'],
+                                 ['esimies', 'ies', 'mies']]) {
+  const pts = w.splitPoints(q).map((p) => q.slice(p));
+  if (pts.includes(banned)) { sbad++; console.log(`  VIRHE ${q}: kielletty loppuosa ${banned}`); }
+  if (kept && !pts.includes(kept)) { sbad++; console.log(`  VIRHE ${q}: kelpo loppuosa ${kept} katosi`); }
+}
+console.log(`loppuosakielto (bitti 32): ${sbad} virhettä`);
+
 console.log('\n== näytteitä ==');
 for (const q of ['kissa', 'kahvi', 'pöytä', 'nähdä', 'ilta', 'yö']) {
   const r = w.search(q, { limit: 10, noProper: true, onlyBase: true });
@@ -141,4 +167,4 @@ for (const q of ['kissa', 'kahvi', 'pöytä', 'nähdä', 'ilta', 'yö']) {
     console.log(`   ${q} ${x.b}  →  ${x.r1} ${x.r2}`);
   }
 }
-process.exit(bad || pbad || cbad ? 1 : 0);
+process.exit(bad || pbad || cbad || vbad || sbad ? 1 : 0);

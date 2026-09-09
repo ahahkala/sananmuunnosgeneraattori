@@ -349,12 +349,21 @@ function collect(text, opts) {
   return { out };
 }
 
-/* Yhdyssanan jakokohdat. Ehtoja on kaksi: loppuosan on löydyttävä sanastosta
-   (vähintään MIN_SUFFIX merkkiä) ja alkuosaan on jäätävä päätä pidemmälti,
-   koska R1:n alkuosa tarkistetaan sanastosta - pelkkää päätä ("ta", "no")
-   vastaavia sanoja ei ole. Siksi esim. "jää|kaappi" ei kelpaa jakokohdaksi.
-   Kaikki kelvolliset kohdat kokeillaan: pisin sanastosta löytyvä loppuosa on
-   usein väärä ("talv|isota", "jääka|appi"), mutta väärä jako ei yleensä tuota
+/* Yhdyssanan jakokohdat. Ehtoja on kolme: loppuosan on löydyttävä sanastosta
+   (vähintään MIN_SUFFIX merkkiä), sen on kelvattava yhdyssanan loppuosaksi
+   (lippubitti 32 kieltää) ja alkuosaan on jäätävä päätä pidemmälti, koska
+   R1:n alkuosa tarkistetaan sanastosta - pelkkää päätä ("ta", "no") vastaavia
+   sanoja ei ole. Siksi esim. "jää|kaappi" ei kelpaa jakokohdaksi.
+
+   Bitti 32 tulee Joukahaisen ei_ysj/ei_ys-merkinnöistä, joilla Voikko estää
+   samat väärät jaot omassa yhdyssanantarkistimessaan. Se karsii kolmanneksen
+   jakokohdista, ja karsiutuvat ovat sijapäätteitä jotka näyttävät loppuosilta:
+   "patriotism|ien", "anjovi|ksiin", "kerrotun|laisesta". Merkintä ei kata
+   kaikkea - "kesäl|oma" ja "jääka|appi" jäävät jäljelle, koska niiden
+   loppuosat ovat yleisesti ottaen kelvollisia.
+
+   Loput kelvolliset kohdat kokeillaan kaikki: pisin sanastosta löytyvä
+   loppuosa on usein väärä ("talv|isota"), mutta väärä jako ei yleensä tuota
    osumia, koska R1:n alkuosan on silti oltava sanastossa oleva sana. */
 var MIN_SUFFIX = 3;
 
@@ -367,7 +376,8 @@ function splitPoints(t) {
   if (j >= q.length) return out;
   const he = j + ((j + 1 < q.length && q[j + 1] === q[j]) ? 2 : 1);
   for (let p = he + 1; p <= t.length - MIN_SUFFIX; p++) {
-    if (lookupExact(t.slice(p))) out.push(p);
+    const i = lookupIndex(t.slice(p));
+    if (i >= 0 && !(flags[i] & 32)) out.push(p);
   }
   return out;
 }
@@ -500,8 +510,14 @@ function randomExamples(count, minResults) {
 }
 
 function lookupExact(text) {
+  return lookupIndex(text) >= 0;
+}
+
+/* Kuten lookupExact, mutta palauttaa sanan indeksin (tai -1), jotta kutsuja
+   pääsee käsiksi sen lippuihin. */
+function lookupIndex(text) {
   const q = toCodes(text.trim().toLowerCase());
-  if (!q) return false;
+  if (!q) return -1;
   let lo = 0, hi = N - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
@@ -512,10 +528,10 @@ function lookupExact(text) {
       if (codes[s + k] !== q[k]) { cmp = codes[s + k] < q[k] ? -1 : 1; break; }
     }
     if (cmp === 0) cmp = (e - s) === q.length ? 0 : ((e - s) < q.length ? -1 : 1);
-    if (cmp === 0) return true;
+    if (cmp === 0) return mid;
     if (cmp < 0) lo = mid + 1; else hi = mid - 1;
   }
-  return false;
+  return -1;
 }
 
 self.onmessage = function (ev) {

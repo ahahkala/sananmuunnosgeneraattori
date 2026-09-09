@@ -8,7 +8,7 @@ web/data/words.bin.gz  etuliitekoodattu, aakkosjärjestyksessä:
                        [jaetun etuliitteen pituus][loppuosan koodit][0]
 web/data/flags.bin.gz  1 tavu / sana: 1 = perusmuoto, 2 = ei erisnimi,
                        4 = yleiskielinen, 8 = kelpaa esimerkiksi,
-                       16 = karkea kieli
+                       16 = karkea kieli, 32 = ei yhdyssanan loppuosaksi
 web/data/meta.json     aakkosto ja sanamäärä
 
 Käyttö:

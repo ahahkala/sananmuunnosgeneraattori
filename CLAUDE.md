@@ -123,6 +123,13 @@ alkurajauksen (`kissa laa`) ja yhdyssanahaun rakenteen - muttei sitä, onko
 koottu yhdyssana oikeaa suomea. Se on rakenteellinen tarkistus: se ei
 huomaa, jos itse sanasto sisältää virheellisen muodon.
 
+Tästä on yksi poikkeus, "sanaston pistokoe" -osio: se tarkistaa nimetyt muodot
+sanastosta (`cowboyna` kyllä, `cowboynä` ei) ja nimetyt jakokohdat. Nämä
+tulevat `vtype`- ja `ei_ysj`-merkinnöistä, joita mikään muu testi ei kata,
+koska väärä tulos on rakenteellisesti täysin kelvollinen - vain sisältö on
+väärin. **Jos lisäät vastaavan lähdeaineistoon nojaavan korjauksen, lisää
+sille rivi tänne.**
+
 ## Sivun ajaminen selaimessa
 
 Sivu vaatii HTTP-palvelimen (`fetch` ei toimi `file://`-osoitteesta):
@@ -158,9 +165,16 @@ Kolme paikkaa koodaavat samaa asiaa. Jos muutat yhtä, muuta muut:
    `4` = yleiskielinen (ei `dialect`/`old`), `8` = kelpaa sivun automaattiseksi
    esimerkkisanaksi (ei `EXAMPLE_BLOCK`-listalla), `16` = karkea kieli
    (Joukahaisen `inappropriate` + `RUDE_EXTRA` + `RUDE_AMBIGUOUS`, pois
-   lukien `EXAMPLE_BLOCK`).
-   `incorrect`-tyyliset sanat pudotetaan kokonaan jo generoinnissa. Bitit
-   mahtuvat yhteen tavuun - seuraava vapaa on `32`.
+   lukien `EXAMPLE_BLOCK`), `32` = ei kelpaa yhdyssanan loppuosaksi
+   (Joukahaisen `ei_ysj`/`ei_ys`).
+   `incorrect`-tyyliset sanat pudotetaan kokonaan jo generoinnissa. **Tavu on
+   nyt täynnä** - seuraava bitti vaatii toisen tavun tai bittien uudelleenjaon.
+
+   Bitti `32` on ainoa, joka asetetaan vasta koko generoinnin jälkeen. Merkintä
+   on lemmakohtainen, mutta sama kirjoitusasu voi syntyä useasta lemmasta
+   (`ahteen` ← *ahde* ja *ahdas*), joten bitti annetaan vain muodoille, joita ei
+   tuota yksikään sallittu lemma. Pelkkä OR ylimerkitsisi 667 muotoa 6 136:sta.
+   Merkittyjä muotoja on n. 4 960.
 
    Bitti `16` ohjaa vain sivun lajitteluvalintaa "sopimattomat sanat ensin";
    se ei suodata mitään pois. Karkeita sanamuotoja on n. 1 490, koska
@@ -215,6 +229,20 @@ Vokaalisointua **ei korjata säännöllä** vaan sanastohaulla: hännät
 indeksoidaan neutralisoituna (ä→a, ö→o, y→u), jolloin sanasto kertoo, kumpi
 variantti on olemassa oleva sana.
 
+**Sointu, jota vartalosta ei näe.** `morph.harm()` etsii sanan lopusta
+ensimmäisen ei-neutraalin vokaalin. Lainoissa sääntö pettää: `cowboy`,
+`playboy`, `country` ja `designer` saisivat etuvokaaliset päätteet
+(`cowboynä`), koska loppu-`y` luetaan etuvokaaliksi vaikka se ääntyy /i/.
+Joukahaisen `<inflection><vtype>` on käsin annettu vastaus samaan kysymykseen
+586 sanalle, ja `generate.py` syöttää sen `harmony_override`-sanakirjaan, joka
+ohittaa sekä `harm()`:n että `compound_harmony`:n. Se korjasi 473 virheellistä
+sanamuotoa 36 lemmalta.
+
+`vtype` = `aä` (122 lemmaa, esim. `mitsubishi`, `arkkitehti`) tarkoittaa, että
+**kumpikin** variantti on oikeaa suomea. Näille pidetään nykyinen valinta;
+molempien generointi lisäisi n. 968 sanamuotoa eli 968 uutta mahdollista paria,
+mutta vaatisi lemman generoinnin kahdesti. Tekemättä, ei este.
+
 **Yhdyssanojen sointu.** Naiivi "viimeinen ei-neutraali vokaali" -sääntö
 tuottaa `sanomalehtea`. Korjaus (`generate.py: compound_harmony`) on
 tarkoituksella **tarkkuus edellä**: se vaatii, että loppuosa on kuratoidulta
@@ -241,8 +269,9 @@ R1 olisi sanastosta puuttuva yhdyssana - `tosimies`, `marjakauppa` ja
 `joulubussi` eivät ole sanastossa. Mitatusti jokainen kokeiltu yhdyssana antoi
 nolla osumaa ennen tätä ja tuhansia sen jälkeen.
 
-Jakoehdot (`splitPoints`): loppuosan on löydyttävä sanastosta ja oltava
-vähintään `MIN_SUFFIX` (3) merkkiä, ja alkuosaan on jäätävä vähintään yksi
+Jakoehdot (`splitPoints`): loppuosan on löydyttävä sanastosta, oltava
+vähintään `MIN_SUFFIX` (3) merkkiä ja kelvattava yhdyssanan loppuosaksi
+(lippubitti `32` kieltää), ja alkuosaan on jäätävä vähintään yksi
 merkki ensimmäisen vokaalin jälkeen. **Kaikki** kelvolliset jakokohdat
 kokeillaan ja tulokset yhdistetään (avain: parisana + R1 + loppuosa).
 Kustannus on 1-3 hakua, mitattuna 2-30 ms, ja vain nollaosumaisille kyselyille.
@@ -293,13 +322,27 @@ bugeja - älä "korjaa" niitä tarkistamatta, mitä korjaus kaataa mukanaan:**
 `vendor/` sisältää ulkopuolista, eri lisenssin alaista aineistoa - älä muokkaa
 sen tiedostoja, vaan päivitä ne alkuperäisestä lähteestä.
 Rakenne: `<word>` → `<forms><form>`, `<classes><wclass>`, `<inflection><infclass>`,
-`<style><flag>`.
+`<style><flag>`. Näiden lisäksi luetaan `<inflection><vtype>` ja
+`<compounding><flag>`. Muut kentät jätetään lukematta: `<usage>` (erikoisala),
+`<frequency><fclass>` (yleisyysluokka 1-10, pieni = yleisempi, vain 3 256
+sanalla), `<derivation>` (`-inen`-johdos), `<grammar>` (verbin rektio),
+`<baseform>`, `<application>` (`not_voikko`) ja `<info>`.
 
 - Ensimmäinen `<form>` on perusmuoto; muut ovat yhdyssanamerkittyjä
   kirjoitusasuja (`hannun=vaakuna`). `=`-merkintä **ei** kerro yhdyssanan
   loppuosaa, joten siitä ei ole apua vokaalisoinnussa.
 - `<infclass type="historical">` on vanhentunut vaihtoehto – `parse_joukahainen.py`
   poimii vain attribuutittomat.
+- `<compounding><flag>` on **poikkeuslista, ei kattava lausunto**: lippuja on
+  vain 804 lemmalla 39 612:sta. Siksi `ei_ysj`/`ei_ys` ei korjaa alla lueteltuja
+  tunnettuja jakovirheitä - `oma`, `appi` ja `aja` ovat yleisesti ottaen
+  kelvollisia loppuosia eikä niitä ole merkitty. Mitattuna se silti karsii
+  kolmanneksen jakokohdista, ja karsiutuvat ovat sijapäätteitä jotka näyttävät
+  loppuosilta (`patriotism|ien`, `anjovi|ksiin`, `kerrotun|laisesta`).
+  Alkuosalippuja (`eln`/`ell`/`elt`/`el_altark`, 287 lemmaa kuten `esi`, `epä`,
+  `eko`) kokeiltiin lajittelubonuksena: **hyöty mitattiin nollaksi**, koska
+  oikea jako voittaa jo nyt tuottamiensa osumien määrällä. Älä lisää sitä
+  uudelleen mittaamatta.
 - Sanaluokat: `noun`, `verb`, `adjective`, `adverb`, `pnoun_*`, `abbreviation`,
   `prefix`, `interjection`, `conjunction`. Lyhenteet ja etuliitteet ohitetaan,
   taipumattomat sanaluokat generoidaan vain perusmuotona.

@@ -11,6 +11,15 @@ wclass_re = re.compile(r'<wclass>([^<]*)</wclass>')
 inf_re = re.compile(r'<infclass>([^<]*)</infclass>')   # only non-historical (no type attr)
 flag_re = re.compile(r'<flag>([^<]*)</flag>')
 style_re = re.compile(r'<style>(.*?)</style>', re.S)
+# Vokaalisointu niille sanoille, joissa sitä ei voi päätellä vartalosta
+# (lainat kuten "cowboy"). Arvo on 'a', 'ä' tai 'aä' - ks. generate.py.
+vtype_re = re.compile(r'<vtype>([^<]*)</vtype>')
+# Yhdyssanakäyttäytyminen. Kiinnostavia ovat vain kiellot: 'ei_ysj' = ei kelpaa
+# yhdyssanan jälkiosaksi, 'ei_ys' = ei yhdyssanoihin lainkaan. Voikko käyttää
+# näitä oman yhdyssanantarkistimensa väärien jakojen estoon, ja yhdyssanahaku
+# tarvitsee saman tiedon samaan tarkoitukseen.
+comp_re = re.compile(r'<compounding>(.*?)</compounding>', re.S)
+NO_TAIL = ('ei_ysj', 'ei_ys')
 
 def main():
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
@@ -30,12 +39,20 @@ def main():
         infs = inf_re.findall(body)
         st = style_re.search(body)
         styles = flag_re.findall(st.group(1)) if st else []
-        out.append({
+        cp = comp_re.search(body)
+        cflags = flag_re.findall(cp.group(1)) if cp else []
+        e = {
             'w': base,
             'c': wclasses,
             'i': infs,
             's': styles,
-        })
+        }
+        vt = vtype_re.search(body)
+        if vt:
+            e['v'] = vt.group(1)
+        if any(f in NO_TAIL for f in cflags):
+            e['x'] = 1          # ei kelpaa yhdyssanan loppuosaksi
+        out.append(e)
     with open(OUT, 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False)
     print('entries:', len(out))

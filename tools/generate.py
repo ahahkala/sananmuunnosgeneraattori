@@ -305,13 +305,22 @@ def main():
     entries = json.load(open(os.path.join(ROOT, 'build', 'lemmas.json'),
                              encoding='utf-8'))
     # lippubitit: 1 = perusmuoto, 2 = ei erisnimi, 4 = yleiskielinen,
-    #             8 = kelpaa esimerkkisanaksi
+    #             8 = kelpaa esimerkkisanaksi, 16 = karkea, 32 = ei loppuosaksi
     words = {}
+
+    # Bitti 32 kertoo, ettei muoto kelpaa yhdyssanan loppuosaksi. Merkintä on
+    # lemmakohtainen, mutta sama kirjoitusasu voi syntyä useasta lemmasta
+    # ("ahteen" <- ahde ja ahdas), joten bitti asetetaan vasta lopuksi ja vain
+    # muodoille, joita EI tuota yksikään sallittu lemma. Pelkkä OR ylimerkitsisi
+    # 667 muotoa 6 136:sta.
+    notail, oktail = set(), set()
+    cur_notail = [False]
 
     def add(w, flags):
         if not CLEAN.match(w) or len(w) < 2 or len(w) > 30:
             return
         words[w] = words.get(w, 0) | flags
+        (notail if cur_notail[0] else oktail).add(w)
 
     lemmaset = set(EXTRA.split())
     for e in entries:
@@ -321,6 +330,16 @@ def main():
         h = compound_harmony(w, lemmaset)
         if h:
             harmony_override[w] = h
+    # Joukahaisen <vtype> on käsin annettu sointu niille sanoille, joissa
+    # "viimeinen ei-neutraali vokaali" -sääntö menee vikaan - tyypillisesti
+    # lainoille, joiden loppu-y ääntyy /i/: "cowboyna", ei "cowboynä". Se on
+    # lähdeaineiston kanta yhdestä sanasta, joten se voittaa oman
+    # yhdyssanaheuristiikkamme. Arvo 'aä' tarkoittaa, että kumpikin variantti
+    # kelpaa; silloin pidetään nykyinen valinta.
+    for e in entries:
+        v = e.get('v')
+        if v in ('a', 'ä'):
+            harmony_override[e['w'].lower()] = v
 
     unknown = {}
     for e in entries:
@@ -340,6 +359,7 @@ def main():
             common |= 8       # kelpaa sivun automaattiseksi esimerkkisanaksi
             if 'inappropriate' in styles or lemma in RUDE:
                 common |= 16  # karkea kieli - oma lajitteluvalintansa sivulla
+        cur_notail[0] = bool(e.get('x'))
         add(lemma, 1 | common)
         if wcs & BASE_ONLY and not (wcs - BASE_ONLY):
             continue
@@ -356,8 +376,12 @@ def main():
                 add(f, common)
         FORCE_HARM[0] = None
 
+    cur_notail[0] = False
     for w in EXTRA.split():
         add(w.lower(), 1 | 2)
+
+    for w in notail - oktail:
+        words[w] |= 32
 
     if unknown:
         print('tuntemattomat luokat:', sorted(unknown.items(),
