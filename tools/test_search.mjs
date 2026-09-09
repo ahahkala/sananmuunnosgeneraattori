@@ -69,6 +69,28 @@ for (const q of QUERIES) {
 
 console.log(`\n== ristiintarkistus: ${checked} tulosta, ${bad} virhettä ==`);
 
+/* Parisanan alkurajaus: sen on annettava täsmälleen sama joukko kuin
+   rajaamattoman haun suodattaminen jälkikäteen. */
+console.log('\n== parisanan alkurajaus ==');
+let pbad = 0;
+for (const [q, pre] of [['kissa', 'ka'], ['talo', 'per'], ['pöytä', 'l'],
+                        ['kahvi', 'muna'], ['sana', 'zzz']]) {
+  const all = w.search(q, { limit: 100000, noProper: false });
+  const want = (all.results || []).filter((r) => r.b.startsWith(pre));
+  const got = w.search(q, { prefix: pre, limit: 100000, noProper: false });
+  const list = got.results || [];
+  const problems = [];
+  if (got.total !== want.length) problems.push(`total ${got.total} != ${want.length}`);
+  if (list.length !== want.length) problems.push(`osumia ${list.length} != ${want.length}`);
+  for (const r of list) {
+    if (!r.b.startsWith(pre)) { problems.push('ei ala oikein: ' + r.b); break; }
+  }
+  if (problems.length) { pbad++; console.log(`  VIRHE ${q} ${pre}: ${problems.join('; ')}`); }
+  console.log(`${q.padEnd(8)} ${pre.padEnd(6)} ${String(got.total).padStart(6)} osumaa` +
+              ` (rajaamaton ${all.total})`);
+}
+console.log(`rajaus: ${pbad} virhettä`);
+
 console.log('\n== näytteitä ==');
 for (const q of ['kissa', 'kahvi', 'pöytä', 'nähdä', 'ilta', 'yö']) {
   const r = w.search(q, { limit: 10, noProper: true, onlyBase: true });
@@ -77,4 +99,4 @@ for (const q of ['kissa', 'kahvi', 'pöytä', 'nähdä', 'ilta', 'yö']) {
     console.log(`   ${q} ${x.b}  →  ${x.r1} ${x.r2}`);
   }
 }
-process.exit(bad ? 1 : 0);
+process.exit(bad || pbad ? 1 : 0);

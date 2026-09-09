@@ -14,6 +14,7 @@ const PAGE = 60;
 let ready = false;
 let queryId = 0;
 let last = null;      // viimeisin vastaus
+let cur = { word: '', prefix: '' };   // viimeisimmän haun jaettu syöte
 let shown = 0;
 
 /* Versioleima tulee tämän skriptin omasta osoitteesta (app.js?v=...), jonka
@@ -68,6 +69,15 @@ function esc(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+/* Hakukentässä voi olla kaksi sanaa: ensimmäinen on hakusana, loput rajaavat
+   parisanan alkukirjaimet ("kissa kau" -> vain parit, joiden toinen sana alkaa
+   kau-). Rajaus tehdään workerissa, ei täällä: tänne tulee vain rajattu määrä
+   osumia, joten selainpään suodatus laskisi väärän kokonaismäärän. */
+function parseQuery(value) {
+  const parts = value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return { word: parts[0] || '', prefix: parts.slice(1).join('') };
+}
+
 let timer = null;
 function schedule() {
   clearTimeout(timer);
@@ -76,9 +86,10 @@ function schedule() {
 
 function run() {
   if (!ready) return;
-  const q = $q.value.trim().toLowerCase();
-  history.replaceState(null, '', q ? '#' + encodeURIComponent(q) : ' ');
-  if (!q) {
+  const raw = $q.value.trim().toLowerCase();
+  cur = parseQuery(raw);
+  history.replaceState(null, '', raw ? '#' + encodeURIComponent(raw) : ' ');
+  if (!cur.word) {
     $results.innerHTML = '';
     $more.hidden = true;
     $hint.hidden = true;
@@ -91,11 +102,12 @@ function run() {
   worker.postMessage({
     type: 'query',
     id: ++queryId,
-    q,
+    q: cur.word,
     opts: {
       onlyBase: $onlyBase.checked,
       noProper: $noProper.checked,
       sort: $sort.value,
+      prefix: cur.prefix,
       limit: 3000,
     },
   });
@@ -103,6 +115,10 @@ function run() {
 
 function render(m) {
   last = m;
+  // Vastaus on aina viimeisimpään kyselyyn (id tarkistettu), joten cur kuvaa
+  // sitä. Otetaan sanat talteen: "näytä lisää" voi tulla paljon myöhemmin.
+  last.word = cur.word;
+  last.prefix = cur.prefix;
   shown = 0;
   $results.innerHTML = '';
   $hint.hidden = true;
@@ -123,11 +139,19 @@ function render(m) {
     return;
   }
 
-  const q = $q.value.trim().toLowerCase();
+  const q = last.word, prefix = last.prefix;
   const known = m.known
     ? ''
     : ' <span class="warn">(sanaa ei löydy sanastosta – tulokset perustuvat silti sen alkuun ja loppuun)</span>';
 
+  if (!m.total && prefix) {
+    $status.innerHTML = 'Ei sananmuunnosta sanalle <b>' + esc(q) +
+      '</b>, jonka toinen sana alkaa <b>' + esc(prefix) + '</b>.' + known;
+    $more.hidden = true;
+    $hint.hidden = false;
+    $hint.innerHTML = 'Kokeile lyhyempää alkua tai poista jälkimmäinen sana kentästä.';
+    return;
+  }
   if (!m.total) {
     $status.innerHTML = 'Ei yhtään sananmuunnosta sanalle <b>' + esc(q) + '</b>.' + known;
     $more.hidden = true;
@@ -147,13 +171,14 @@ function render(m) {
         '</b> sisältää sopimattoman sanan'
       : ' – <span class="warn">ei yhtään sopimatonta sanaa</span>';
   }
+  const filt = prefix ? ', joiden toinen sana alkaa <b>' + esc(prefix) + '</b>' : '';
   $status.innerHTML = '<b>' + m.total.toLocaleString('fi-FI') + '</b> sananmuunnosta sanalle <b>' +
-    esc(q) + '</b>' + extra + ' <span style="opacity:.6">(' + m.ms + ' ms)</span>' + known;
+    esc(q) + '</b>' + filt + extra + ' <span style="opacity:.6">(' + m.ms + ' ms)</span>' + known;
   appendMore();
 }
 
 function appendMore() {
-  const q = $q.value.trim().toLowerCase();
+  const q = last.word;
   const items = last.results;
   const end = Math.min(shown + PAGE, items.length);
   const frag = document.createDocumentFragment();

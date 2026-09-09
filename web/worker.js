@@ -192,6 +192,15 @@ function tailEqualsNorm(i, arr) {
   return true;
 }
 
+/* Alkaako sana i annetuilla tavukoodeilla? Käytetään parisanan rajaukseen,
+   kun hakukentässä on kaksi sanaa. */
+function hasPrefix(i, pre) {
+  const s = offs[i], e = offs[i + 1];
+  if (e - s < pre.length) return false;
+  for (let k = 0; k < pre.length; k++) if (codes[s + k] !== pre[k]) return false;
+  return true;
+}
+
 function tailEqualsWordTail(i, j) {
   const si = offs[i] + vpos[i] + vlen[i], ei = offs[i + 1];
   const sj = offs[j] + vpos[j] + vlen[j], ej = offs[j + 1];
@@ -253,6 +262,11 @@ function search(text, opts) {
   for (let k = j + qVlen; k < q.length; k++) qTail.push(normCode[q[k]]);
   const qTailKey = hashTail(q, j + qVlen, q.length, qVlen);
 
+  // Toinen hakusana rajaa parisanan alkukirjaimet ("kissa kau"). Tuntematon
+  // merkki etuliitteessä ei voi osua mihinkään sanaan.
+  const pre = opts.prefix ? toCodes(opts.prefix) : null;
+  if (opts.prefix && !pre) return { results: [], total: 0 };
+
   // R1-ehdokkaat: sanat, joilla on lähtösanan häntä (ja sama vokaalin kesto)
   const heads = new Map();          // head-gid -> [sanaindeksit]
   const tr = group(tailIx, qTailKey);
@@ -287,6 +301,7 @@ function search(text, opts) {
 
   const hits = [];
   const consider = (w) => {
+    if (pre && !hasPrefix(w, pre)) return;        // parisanan alku rajattu
     if (headIx.key[w] === qHead) return;          // pää ei vaihtuisi
     const xs = heads.get(headIx.gid[w]);
     if (!xs) return;
