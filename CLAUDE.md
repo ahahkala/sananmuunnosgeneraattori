@@ -41,6 +41,13 @@ Sama koskee testiajojen tulosteita: putkita `| head -40` tai `| tail -20`.
 `tools/test_search.mjs` tulostaa kymmeniä rivejä, ei satojatuhansia – mutta jos
 lisäät sinne tulostusta, rajaa se.
 
+## Älä committaa tai pushaa pyytämättä
+
+Tee muutokset työhakemistoon ja kerro mitä muutit. `git commit` ja `git push`
+ajetaan vasta, kun käyttäjä pyytää sitä erikseen - myös silloin, kun tehtävä
+tuntuu valmiilta ja testit menevät läpi. Push julkaisee sivun heti
+(GitHub Pages -workflow), joten se on käyttäjän päätös, ei agentin.
+
 ## Ympäristö
 
 - Windows, PowerShell + Git Bash. Bash-työkalu on kätevämpi näihin komentoihin.
