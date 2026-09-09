@@ -9,6 +9,7 @@ const $onlyBase = document.getElementById('onlyBase');
 const $noProper = document.getElementById('noProper');
 const $sort = document.getElementById('sort');
 const $examples = document.getElementById('examples');
+const $clear = document.getElementById('clear');
 
 const PAGE = 60;
 let ready = false;
@@ -84,7 +85,13 @@ function schedule() {
   timer = setTimeout(run, 90);
 }
 
+/* Tyhjennysnappi nakyy vain, kun kentassa on jotain tyhjennettavaa. */
+function syncClear() {
+  $clear.hidden = $q.value === '';
+}
+
 function run() {
+  syncClear();
   if (!ready) return;
   const raw = $q.value.trim().toLowerCase();
   cur = parseQuery(raw);
@@ -235,7 +242,16 @@ function applyHash() {
 window.addEventListener('hashchange', applyHash);
 
 $more.onclick = appendMore;
-$q.addEventListener('input', schedule);
+$q.addEventListener('input', () => { syncClear(); schedule(); });
+
+/* Tyhjennys palauttaa sivun alkutilaan: run() tyhjalla kentalla nollaa
+   tulokset, osoitepalkin #-osan ja tuo esimerkit takaisin. */
+$clear.addEventListener('click', () => {
+  $q.value = '';
+  clearTimeout(timer);
+  $q.focus();
+  run();
+});
 $onlyBase.addEventListener('change', run);
 $sort.addEventListener('change', run);
 $noProper.addEventListener('change', run);
