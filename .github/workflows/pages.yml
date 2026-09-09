@@ -39,11 +39,12 @@ jobs:
       # nähden. --check vertaa purettua sisältöä, ei pakattuja tavuja: gzipin
       # tuloste riippuu zlibin versiosta, joten eri koneilla pakatut tiedostot
       # eroavat tavutasolla vaikka sisältö olisi identtinen.
-      - name: Tarkista että web/data vastaa lähdeaineistoa
+      - name: Tarkista että web/data ja versioleima ovat ajan tasalla
         run: |
           python tools/parse_joukahainen.py
           python tools/generate.py
           python tools/build_web_data.py --check
+          python tools/stamp_assets.py --check
 
       - name: Testit
         run: |

@@ -85,6 +85,7 @@ passiivi, partisiipit, infinitiivit).
 python tools/parse_joukahainen.py    # XML -> build/lemmas.json
 python tools/generate.py             # -> build/wordforms.txt (~993 000 riviä)
 python tools/build_web_data.py       # -> web/data/*.gz
+python tools/stamp_assets.py         # versioleima index.html:ään
 ```
 
 ### Testit
@@ -119,6 +120,7 @@ tools/parse_joukahainen.py XML-jäsennin
 tools/morph.py             taivutusmoottori
 tools/generate.py          taivutusluokkien kartta + sanamuotojen generointi
 tools/build_web_data.py    selaimen binäärimuotojen pakkaus
+tools/stamp_assets.py      välimuistin ohittava versioleima
 tools/test_morph.py        taivutustestit
 tools/test_search.mjs      hakukoneen testit
 web/index.html             käyttöliittymä

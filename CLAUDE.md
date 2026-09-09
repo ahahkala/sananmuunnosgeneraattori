@@ -67,6 +67,7 @@ export PYTHONIOENCODING=utf-8
 python tools/parse_joukahainen.py    # vendor/joukahainen.xml -> build/lemmas.json
 python tools/generate.py             # lemmas.json           -> build/wordforms.txt
 python tools/build_web_data.py       # wordforms.txt         -> web/data/*.gz
+python tools/stamp_assets.py         # päivittää versioleiman index.html:ään
 ```
 
 Datahakemistoja on kolme, älä sekoita niitä:
@@ -78,7 +79,10 @@ julkaistava artefakti (versionhallinnassa).
 Pelkkä `generate.py` ei riitä: selain lukee vain `web/data/`-hakemistoa, joten
 muutos ei näy sivulla ennen `build_web_data.py`:tä.
 
-`web/worker.js`- ja `web/app.js`-muutokset eivät vaadi uudelleengenerointia.
+`web/worker.js`- ja `web/app.js`-muutokset eivät vaadi uudelleengenerointia,
+**mutta vaativat `stamp_assets.py`:n ajon**. Ilman sitä palaava kävijä jatkaa
+vanhalla välimuistitetulla versiolla. `stamp_assets.py` on nopea eikä tarvitse
+`build/`-hakemistoa, joten sen voi ajaa yksinään.
 
 **Älä vertaa pakattuja tavuja koneiden välillä.** gzipin tuloste riippuu
 zlibin versiosta, joten Windowsilla ja CI:n Ubuntulla pakatut `web/data/*.gz`
@@ -86,9 +90,19 @@ eroavat tavutasolla vaikka sisältö olisi identtinen. `mtime=0` pitää tulokse
 vakaana vain saman koneen ajojen välillä.
 
 Ajantasaisuuden tarkistaa `python tools/build_web_data.py --check`, joka
-purkaa julkaistut tiedostot ja vertaa **sisältöä** lähdeaineistoon.
-Julkaisu-workflow (`.github/workflows/pages.yml`) ajaa sen, joten jos muutat
-generaattoria etkä commitoi `web/data/`:ta, julkaisu pysähtyy.
+purkaa julkaistut tiedostot ja vertaa **sisältöä** lähdeaineistoon, sekä
+`python tools/stamp_assets.py --check`, joka tarkistaa versioleiman.
+Julkaisu-workflow (`.github/workflows/pages.yml`) ajaa molemmat, joten jos
+muutat generaattoria tai selainkoodia etkä commitoi `web/data/`:ta ja
+`web/index.html`:ää, julkaisu pysähtyy.
+
+**Versioleima.** `index.html`:n `<script src="app.js?v=...">` on tiiviste
+`app.js`:n, `worker.js`:n ja sanastotiedostojen sisällöstä. `app.js` lukee
+leiman omasta osoitteestaan ja vie sen workerille ja `data/`-hakuihin, joten
+yksi leima riittää koko ketjuun. Tiiviste lasketaan rivinvaihdot
+normalisoituna ja gzipit purettuna, jotta Windowsin työkopio ja CI:n Linux
+päätyvät samaan leimaan. `index.html` itse ei ole leiman lähteenä - se on
+aloitusdokumentti, jonka selain tarkistaa joka tapauksessa.
 
 ## Testit – aja molemmat ennen kuin ilmoitat työn valmiiksi
 
@@ -140,8 +154,23 @@ Kolme paikkaa koodaavat samaa asiaa. Jos muutat yhtä, muuta muut:
 1. **Lippubitit.** `tools/generate.py` kirjoittaa ne, `tools/build_web_data.py`
    pakkaa ja `web/worker.js` lukee: `1` = perusmuoto, `2` = ei erisnimi,
    `4` = yleiskielinen (ei `dialect`/`old`), `8` = kelpaa sivun automaattiseksi
-   esimerkkisanaksi (ei `EXAMPLE_BLOCK`-listalla). `incorrect`-tyyliset sanat
-   pudotetaan kokonaan jo generoinnissa.
+   esimerkkisanaksi (ei `EXAMPLE_BLOCK`-listalla), `16` = karkea kieli
+   (Joukahaisen `inappropriate` + `RUDE_EXTRA` + `RUDE_AMBIGUOUS`, pois
+   lukien `EXAMPLE_BLOCK`).
+   `incorrect`-tyyliset sanat pudotetaan kokonaan jo generoinnissa. Bitit
+   mahtuvat yhteen tavuun - seuraava vapaa on `32`.
+
+   Bitti `16` ohjaa vain sivun lajitteluvalintaa "sopimattomat sanat ensin";
+   se ei suodata mitään pois. Karkeita sanamuotoja on n. 1 490, koska
+   Joukahainen merkitsee vain 17 lemmaa ja loput tulevat käsin poimituista
+   listoista: `RUDE_EXTRA` (yksiselitteisesti karkeat) ja `RUDE_AMBIGUOUS`
+   (monimerkitykselliset, esim. `muna`, `panna`, `makkara`). Jälkimmäinen
+   nostaa kärkeen myös viattomia muotoja - se on tietoinen valinta, koska
+   kaksoismerkitys on sananmuunnoksessa nimenomaan se hauska osa.
+
+   Merkintä koskee vain lemman omia taivutusmuotoja. Yhdyssanat ja
+   samannäköiset eri lemmat jäävät ulos: `kaluta`-verbin muodot eivät saa
+   bittiä, vaikka `kalu` saa.
 
    Bitti `8` koskee vain esimerkkiehdotuksia, ei hakua. Haku ei suodata
    mitään: karkeat sanat ovat sananmuunnosten ydinainesta. Esimerkeistä

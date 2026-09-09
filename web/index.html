@@ -99,6 +99,16 @@ header p { margin: 0 0 26px; color: var(--muted); font-size: 15px; max-width: 62
 }
 .opts label { display: inline-flex; gap: 7px; align-items: center; cursor: pointer; }
 .opts input { accent-color: var(--accent); width: 15px; height: 15px; }
+.opts select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+.opts select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 #status { margin: 14px 2px; font-size: 14px; color: var(--muted); min-height: 22px; }
 #status b { color: var(--ink); font-weight: 600; }
@@ -183,6 +193,15 @@ footer a { color: inherit; }
     <div class="opts">
       <label><input type="checkbox" id="onlyBase"> vain perusmuodot</label>
       <label><input type="checkbox" id="noProper" checked> piilota erisnimet</label>
+      <label for="sort">järjestys
+        <select id="sort">
+          <option value="best">osuvimmat ensin</option>
+          <option value="rude">sopimattomat sanat ensin</option>
+          <option value="short">lyhyimmät ensin</option>
+          <option value="alpha">aakkosjärjestys</option>
+          <option value="random">satunnainen</option>
+        </select>
+      </label>
     </div>
   </div>
 
@@ -201,6 +220,7 @@ footer a { color: inherit; }
     sanaston generointi GitHubissa</a>.
   </footer>
 </div>
-<script src="app.js"></script>
+<!-- ?v= on versioleima; tools/stamp_assets.py päivittää sen. -->
+<script src="app.js?v=97811ac9d8"></script>
 </body>
 </html>

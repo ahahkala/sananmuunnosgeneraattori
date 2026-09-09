@@ -144,13 +144,21 @@ function buildIndex(keys) {
   return { map, gid, start, items };
 }
 
-async function init() {
+/* Sanastotiedostot ovat isoja ja pitkäikäisiä, joten selain saa
+   välimuistittaa ne pitkäksi aikaa. Versioleima osoitteessa varmistaa, että
+   palaava kävijä hakee ne uudelleen vasta kun sisältö on oikeasti muuttunut.
+   Leima tulee index.html:stä asti; ilman sitä (esim. testiajoissa) osoitteet
+   pysyvät sellaisinaan. */
+var V = '';
+
+async function init(version) {
+  V = version ? '?v=' + version : '';
   post({ type: 'status', text: 'Ladataan sanastoa…' });
-  const meta = await (await fetch('data/meta.json')).json();
+  const meta = await (await fetch('data/meta.json' + V)).json();
   setupAlphabet(meta.alphabet);
   const [packed, fl] = await Promise.all([
-    loadGz('data/words.bin.gz'),
-    loadGz('data/flags.bin.gz'),
+    loadGz('data/words.bin.gz' + V),
+    loadGz('data/flags.bin.gz' + V),
   ]);
   flags = fl;
   post({ type: 'status', text: 'Puretaan sanastoa…' });
@@ -321,7 +329,7 @@ function search(text, opts) {
                   typical(w) + typical(r1) * 0.5 + typical(r2) * 0.5;
     out.push({ w, r1, r2, score });
   }
-  out.sort((a, b) => b.score - a.score || (offs[a.w + 1] - offs[a.w]) - (offs[b.w + 1] - offs[b.w]));
+  sortHits(out, opts.sort);
   const total = out.length;
   const limit = opts.limit || 400;
   const results = out.slice(0, limit).map((r) => ({
@@ -331,7 +339,46 @@ function search(text, opts) {
     base: !!(flags[r.w] & 1),
     proper: !(flags[r.w] & 2),
   }));
-  return { results, total };
+  // Karkeajärjestyksessä lista jatkuu tavallisilla osumilla, kun karkeat
+  // loppuvat. Kerrotaan näkymälle, montako niitä oli, jotta käyttäjä tietää
+  // mihin asti valinta vaikuttaa.
+  let rudeTotal;
+  if (opts.sort === 'rude') {
+    rudeTotal = 0;
+    while (rudeTotal < out.length && out[rudeTotal].rude) rudeTotal++;
+  }
+  return { results, total, rudeTotal };
+}
+
+/* Lajittelu tehdään ennen limit-rajausta, jotta valinta voi nostaa esiin myös
+   sellaisia osumia, jotka eivät mahtuisi osuvuusjärjestyksen kärkeen lainkaan.
+   Kaikki tilat päätyvät tasapelin sattuessa osuvuuteen, jotta järjestys pysyy
+   vakaana ja mielekkäänä. */
+function sortHits(out, mode) {
+  const len = (i) => offs[i + 1] - offs[i];
+  const byScore = (a, b) => b.score - a.score || len(a.w) - len(b.w);
+  if (mode === 'rude') {
+    // Karkeita sanoja on koko sanastossa vain n. tuhat, joten pelkkä
+    // suodatus tyhjentäisi listan useimmilla hakusanoilla. Tässä ne
+    // nostetaan kärkeen ja loput jäävät perään normaalijärjestykseen.
+    const rude = (r) => (flags[r.w] & 16 ? 1 : 0) + (flags[r.r1] & 16 ? 1 : 0) +
+                        (flags[r.r2] & 16 ? 1 : 0);
+    for (const r of out) r.rude = rude(r);
+    out.sort((a, b) => b.rude - a.rude || byScore(a, b));
+  } else if (mode === 'short') {
+    const total = (r) => len(r.w) + len(r.r1) + len(r.r2);
+    out.sort((a, b) => total(a) - total(b) || byScore(a, b));
+  } else if (mode === 'alpha') {
+    // Sanasto on tallennettu aakkosjärjestyksessä, joten indeksi riittää.
+    out.sort((a, b) => a.w - b.w);
+  } else if (mode === 'random') {
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      const t = out[i]; out[i] = out[j]; out[j] = t;
+    }
+  } else {
+    out.sort(byScore);
+  }
 }
 
 /* Esimerkkiehdokkaat: arkipituiset yleiskieliset perusmuodot, joita kehtaa
@@ -388,7 +435,7 @@ function lookupExact(text) {
 self.onmessage = function (ev) {
   const msg = ev.data;
   if (msg.type === 'init') {
-    init().catch((err) => post({ type: 'error', text: String(err.message || err) }));
+    init(msg.v).catch((err) => post({ type: 'error', text: String(err.message || err) }));
   } else if (msg.type === 'examples') {
     post({ type: 'examples', words: randomExamples(msg.count || 7, msg.min || 25) });
   } else if (msg.type === 'query') {

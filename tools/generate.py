@@ -240,6 +240,33 @@ EXAMPLE_BLOCK = {
     'mustalainen', 'hintti',
 }
 
+# Bitti 16: karkea kieli. Pohjana on Joukahaisen oma inappropriate-merkintä,
+# mutta merkittyjä lemmoja on vain 17 - liian ohut pohja lajitteluvalinnalle,
+# joten mukana on käsin poimittu täydennys. Halventavat nimitykset jäävät
+# pois EXAMPLE_BLOCKin kautta: ne löytyvät haulla, mutta niitä ei nosteta
+# listan kärkeen vitsin aineksena.
+RUDE_EXTRA = {
+    'kusi', 'pieru', 'pierrä', 'paskantaa', 'paskattaa', 'huora', 'lutka',
+    'kikkeli', 'tissi', 'pylly', 'pyllistää', 'runkata', 'runkkari', 'kakka',
+    'kakkia', 'pissa', 'pissata', 'perkele', 'saatana', 'jumalauta',
+}
+
+# Monimerkitykselliset: karkea merkitys on vain sanan toinen lukutapa, ja
+# arkinen lukutapa on usein se yleisempi (muna, panna, naida, makkara).
+# Nämä ovat silti sananmuunnoksen ydinainesta - kaksoismerkitys on juuri se,
+# mikä tekee parista hauskan. Hinta on, että "sopimattomat sanat ensin"
+# nostaa kärkeen myös täysin viattomia muotoja ("pannaan", "munia").
+# Merkintä koskee vain lemman omia taivutusmuotoja, ei yhdyssanoja:
+# "munakello" ja "pannuhuone" ovat eri lemmoja eivätkä saa bittiä.
+# Ryhmä on omana joukkonaan, jotta sen voi ottaa pois yhtenä palana.
+RUDE_AMBIGUOUS = {
+    'muna', 'panna', 'naida', 'hanuri', 'narttu', 'kusiainen', 'helvetti',
+    'piru', 'ämmä', 'kusettaa', 'tussi', 'kalu', 'tatti', 'nakki',
+    'makkara', 'pippeli', 'kyrsä',
+}
+
+RUDE = RUDE_EXTRA | RUDE_AMBIGUOUS
+
 CLEAN = re.compile(r'^[a-zåäöéšž]+$')
 SKIP_WCLASS = {'abbreviation', 'prefix'}
 BASE_ONLY = {'adverb', 'interjection', 'conjunction'}
@@ -311,6 +338,8 @@ def main():
             common |= 4
         if lemma not in EXAMPLE_BLOCK:
             common |= 8       # kelpaa sivun automaattiseksi esimerkkisanaksi
+            if 'inappropriate' in styles or lemma in RUDE:
+                common |= 16  # karkea kieli - oma lajitteluvalintansa sivulla
         add(lemma, 1 | common)
         if wcs & BASE_ONLY and not (wcs - BASE_ONLY):
             continue

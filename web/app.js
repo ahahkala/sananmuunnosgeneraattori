@@ -7,6 +7,7 @@ const $more = document.getElementById('more');
 const $hint = document.getElementById('hint');
 const $onlyBase = document.getElementById('onlyBase');
 const $noProper = document.getElementById('noProper');
+const $sort = document.getElementById('sort');
 const $examples = document.getElementById('examples');
 
 const PAGE = 60;
@@ -15,8 +16,14 @@ let queryId = 0;
 let last = null;      // viimeisin vastaus
 let shown = 0;
 
-const worker = new Worker('worker.js');
-worker.postMessage({ type: 'init' });
+/* Versioleima tulee tämän skriptin omasta osoitteesta (app.js?v=...), jonka
+   tools/stamp_assets.py kirjoittaa index.html:ään. Se kuljetetaan eteenpäin
+   workerille ja sanastotiedostoille, jotta palaava kävijä saa uuden version
+   heti eikä vasta välimuistin vanhennuttua. */
+const V = new URL(document.currentScript.src).searchParams.get('v') || '';
+
+const worker = new Worker('worker.js' + (V ? '?v=' + V : ''));
+worker.postMessage({ type: 'init', v: V });
 
 worker.onmessage = (ev) => {
   const m = ev.data;
@@ -85,7 +92,12 @@ function run() {
     type: 'query',
     id: ++queryId,
     q,
-    opts: { onlyBase: $onlyBase.checked, noProper: $noProper.checked, limit: 3000 },
+    opts: {
+      onlyBase: $onlyBase.checked,
+      noProper: $noProper.checked,
+      sort: $sort.value,
+      limit: 3000,
+    },
   });
 }
 
@@ -126,8 +138,17 @@ function render(m) {
     return;
   }
 
+  // Karkeajärjestyksessä lista jatkuu tavallisilla osumilla, kun karkeat
+  // loppuvat - kerrotaan siis suoraan, montako niitä oli.
+  let extra = '';
+  if (m.rudeTotal !== undefined) {
+    extra = m.rudeTotal
+      ? ' – niistä <b>' + m.rudeTotal.toLocaleString('fi-FI') +
+        '</b> sisältää sopimattoman sanan'
+      : ' – <span class="warn">ei yhtään sopimatonta sanaa</span>';
+  }
   $status.innerHTML = '<b>' + m.total.toLocaleString('fi-FI') + '</b> sananmuunnosta sanalle <b>' +
-    esc(q) + '</b> <span style="opacity:.6">(' + m.ms + ' ms)</span>' + known;
+    esc(q) + '</b>' + extra + ' <span style="opacity:.6">(' + m.ms + ' ms)</span>' + known;
   appendMore();
 }
 
@@ -176,4 +197,5 @@ window.addEventListener('hashchange', applyHash);
 $more.onclick = appendMore;
 $q.addEventListener('input', schedule);
 $onlyBase.addEventListener('change', run);
+$sort.addEventListener('change', run);
 $noProper.addEventListener('change', run);
