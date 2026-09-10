@@ -287,8 +287,7 @@ function appendMore() {
       '<div class="arrow">→</div>' +
       '<div class="res">' + esc(r.r1) +
         (r.suf ? '<span class="glue">' + esc(r.suf) + '</span>' : '') +
-        ' &nbsp;<span class="w2">' + esc(r.r2) + '</span>' +
-      (r.proper ? '<span class="tag">erisnimi</span>' : '') + '</div>';
+        ' &nbsp;<span class="w2">' + esc(r.r2) + '</span></div>';
     frag.appendChild(row);
   }
   $results.appendChild(frag);

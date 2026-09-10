@@ -43,7 +43,10 @@ function check(q, r) {
     }
     q = q.slice(0, q.length - r.suf.length);
   }
-  const a = split(q), b = split(r.b), x = split(r.r1), y = split(r.r2);
+  // Worker isontaa erisnimien alkukirjaimen näyttöä varten. Sääntötarkistus ja
+  // sanastohaku tehdään sanaston omalla kirjoitusasulla eli pienellä.
+  const bs = r.b.toLowerCase(), r1s = r.r1.toLowerCase(), r2s = r.r2.toLowerCase();
+  const a = split(q), b = split(bs), x = split(r1s), y = split(r2s);
   const problems = [];
   // R1 = W:n pää + lähtösanan häntä (lähtösanan vokaalin kestolla)
   if (x.on !== b.on || x.v !== b.v) problems.push('R1:n pää ei ole parisanan pää');
@@ -54,7 +57,7 @@ function check(q, r) {
   if (y.len !== b.len) problems.push('R2:n vokaalin kesto väärä');
   if (norm(y.tail) !== norm(b.tail)) problems.push('R2:n häntä ei ole parisanan häntä');
   // kaikkien neljän sanan on löydyttävä sanastosta
-  for (const s of [r.b, r.r1, r.r2]) {
+  for (const s of [bs, r1s, r2s]) {
     if (!w.lookupExact(s)) problems.push('ei sanastossa: ' + s);
   }
   checked++;
@@ -87,14 +90,14 @@ let pbad = 0;
 for (const [q, pre] of [['kissa', 'ka'], ['talo', 'per'], ['pöytä', 'l'],
                         ['kahvi', 'muna'], ['sana', 'zzz']]) {
   const all = w.search(q, { limit: 100000, noProper: false });
-  const want = (all.results || []).filter((r) => r.b.startsWith(pre));
+  const want = (all.results || []).filter((r) => r.b.toLowerCase().startsWith(pre));
   const got = w.search(q, { prefix: pre, limit: 100000, noProper: false });
   const list = got.results || [];
   const problems = [];
   if (got.total !== want.length) problems.push(`total ${got.total} != ${want.length}`);
   if (list.length !== want.length) problems.push(`osumia ${list.length} != ${want.length}`);
   for (const r of list) {
-    if (!r.b.startsWith(pre)) { problems.push('ei ala oikein: ' + r.b); break; }
+    if (!r.b.toLowerCase().startsWith(pre)) { problems.push('ei ala oikein: ' + r.b); break; }
   }
   if (problems.length) { pbad++; console.log(`  VIRHE ${q} ${pre}: ${problems.join('; ')}`); }
   console.log(`${q.padEnd(8)} ${pre.padEnd(6)} ${String(got.total).padStart(6)} osumaa` +

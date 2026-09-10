@@ -179,6 +179,11 @@ function wordStr(i) {
   return s;
 }
 
+function capitalizeProper(w) {
+  const str = wordStr(w)
+  return !(flags[w] & 2) ? str.charAt(0).toUpperCase()+str.slice(1) : str
+}
+
 function group(ix, key) {
   const g = ix.map.get(key);
   if (g === undefined) return null;
@@ -425,7 +430,7 @@ function firstWordGroups(out) {
   const list = [];
   for (const [key, n] of counts) {
     const cut = key.indexOf(' ');
-    list.push({ w: wordStr(+key.slice(0, cut)) + key.slice(cut + 1), n });
+    list.push({ w: capitalizeProper(+key.slice(0, cut)) + key.slice(cut + 1), n });
   }
   list.sort((a, b) => a.w.localeCompare(b.w, 'fi'));
   return list;
@@ -447,15 +452,15 @@ function search(text, opts) {
   // valikkoaan: käyttäjä voi vaihtaa sanaa tai palata koko listaan.
   const groups = opts.groups ? firstWordGroups(out) : undefined;
   if (opts.first) {
-    out = out.filter((r) => wordStr(r.r1) + (r.suf || '') === opts.first);
+    out = out.filter((r) => capitalizeProper(r.r1) + (r.suf || '') === opts.first);
   }
   sortHits(out, opts.sort);
   const total = out.length;
   const limit = opts.limit || 400;
   const results = out.slice(0, limit).map((r) => ({
-    b: wordStr(r.w),
-    r1: wordStr(r.r1),
-    r2: wordStr(r.r2),
+    b: capitalizeProper(r.w),
+    r1: capitalizeProper(r.r1),
+    r2: capitalizeProper(r.r2),
     suf: r.suf || '',
     base: !!(flags[r.w] & 1),
     proper: !(flags[r.w] & 2) || !(flags[r.r1] & 2) || !(flags[r.r2] & 2),
