@@ -283,7 +283,7 @@ function appendMore() {
     const row = document.createElement('div');
     row.className = 'row';
     row.innerHTML =
-      '<div class="src">' + esc(q) + ' &nbsp;' + esc(r.b) + '</div>' +
+      '<div class="src">' + esc(q) + ' &nbsp;<span class="w2">' + esc(r.b) + '</span></div>' +
       '<div class="arrow">→</div>' +
       '<div class="res">' + esc(r.r1) +
         (r.suf ? '<span class="glue">' + esc(r.suf) + '</span>' : '') +
