@@ -458,7 +458,7 @@ function search(text, opts) {
     r2: wordStr(r.r2),
     suf: r.suf || '',
     base: !!(flags[r.w] & 1),
-    proper: !(flags[r.w] & 2),
+    proper: !(flags[r.w] & 2) || !(flags[r.r1] & 2) || !(flags[r.r2] & 2),
   }));
   // Karkeajärjestyksessä lista jatkuu tavallisilla osumilla, kun karkeat
   // loppuvat. Kerrotaan näkymälle, montako niitä oli, jotta käyttäjä tietää
