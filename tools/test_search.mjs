@@ -102,6 +102,35 @@ for (const [q, pre] of [['kissa', 'ka'], ['talo', 'per'], ['pöytä', 'l'],
 }
 console.log(`rajaus: ${pbad} virhettä`);
 
+/* Tuloksen ensimmäisen sanan rajaus. Ryhmien on katettava koko rajaamaton
+   osumajoukko, ja yhden ryhmän valinnan on annettava täsmälleen sen ryhmän
+   osumat - myös yhdyssanahaussa, jossa ryhmän nimi on R1 + liitetty loppuosa. */
+console.log('\n== ensimmäisen sanan rajaus ==');
+let gbad = 0;
+for (const q of ['kissa', 'talo', 'pöytä', 'esimies']) {
+  const all = w.search(q, { limit: 100000, noProper: false, groups: true, compound: true });
+  const list = all.results || [];
+  const groups = all.groups || [];
+  const problems = [];
+  const sum = groups.reduce((a, g) => a + g.n, 0);
+  if (sum !== all.total) problems.push(`ryhmien summa ${sum} != ${all.total}`);
+  if (new Set(groups.map((g) => g.w)).size !== groups.length) problems.push('ryhmä kahdesti');
+  for (const g of groups.slice(0, 5)) {
+    const want = list.filter((r) => r.r1 + r.suf === g.w);
+    const got = w.search(q, { limit: 100000, noProper: false, compound: true, first: g.w });
+    if (got.total !== g.n || want.length !== g.n) {
+      problems.push(`${g.w}: ${got.total}/${want.length} != ${g.n}`);
+    }
+    for (const r of got.results || []) {
+      if (r.r1 + r.suf !== g.w) { problems.push('väärä sana: ' + r.r1 + r.suf); break; }
+    }
+  }
+  if (problems.length) { gbad++; console.log(`  VIRHE ${q}: ${problems.join('; ')}`); }
+  console.log(`${q.padEnd(9)} ${String(groups.length).padStart(4)} eri ensimmäistä sanaa` +
+              ` (${all.total} osumaa)`);
+}
+console.log(`ensimmäisen sanan rajaus: ${gbad} virhettä`);
+
 /* Yhdyssanan alkuosalla haku. Varauma: tämä tarkistaa rakenteen, ei sitä onko
    koottu yhdyssana oikeaa suomea - ks. CLAUDE.md. */
 console.log('\n== yhdyssanan alkuosa ==');

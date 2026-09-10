@@ -412,6 +412,25 @@ function compoundSearch(t, opts) {
   return { out, splits };
 }
 
+/* Tuloksen ensimmäinen sana ryhmittelyä varten: paljas R1 ja siihen liitettävä
+   yhdyssanan loppuosa ovat eri kentissä, mutta käyttäjä näkee ne yhtenä sanana,
+   joten ryhmä on niiden yhdistelmä. Avaimena pidetään sanaindeksiä eikä
+   merkkijonoa, jotta koko osumajoukon läpikäynti ei rakenna turhia sanoja. */
+function firstWordGroups(out) {
+  const counts = new Map();
+  for (const r of out) {
+    const key = r.r1 + ' ' + (r.suf || '');
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const list = [];
+  for (const [key, n] of counts) {
+    const cut = key.indexOf(' ');
+    list.push({ w: wordStr(+key.slice(0, cut)) + key.slice(cut + 1), n });
+  }
+  list.sort((a, b) => a.w.localeCompare(b.w, 'fi'));
+  return list;
+}
+
 function search(text, opts) {
   const t = text.trim().toLowerCase();
   const first = collect(t, opts);
@@ -423,6 +442,12 @@ function search(text, opts) {
   if (!out.length && opts.compound) {
     const c = compoundSearch(t, opts);
     if (c.splits.length) { out = c.out; compound = c.splits; }
+  }
+  // Ryhmät lasketaan ennen first-rajausta, jotta valinta ei kutista omaa
+  // valikkoaan: käyttäjä voi vaihtaa sanaa tai palata koko listaan.
+  const groups = opts.groups ? firstWordGroups(out) : undefined;
+  if (opts.first) {
+    out = out.filter((r) => wordStr(r.r1) + (r.suf || '') === opts.first);
   }
   sortHits(out, opts.sort);
   const total = out.length;
@@ -443,7 +468,7 @@ function search(text, opts) {
     rudeTotal = 0;
     while (rudeTotal < out.length && out[rudeTotal].rude) rudeTotal++;
   }
-  return { results, total, rudeTotal, compound };
+  return { results, total, rudeTotal, compound, groups };
 }
 
 /* Lajittelu tehdään ennen limit-rajausta, jotta valinta voi nostaa esiin myös

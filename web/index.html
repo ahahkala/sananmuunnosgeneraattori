@@ -40,6 +40,9 @@
   --muted: #6d6a62;
   --line: #e4e0d7;
   --accent: #b4451f;
+  /* Teksti aksenttitaustan päällä. Vaalea teema: tumma tiili, jolla valkoinen
+     erottuu. Tumma teema: kirkas oranssi, joka vaatii tumman tekstin. */
+  --on-accent: #ffffff;
   --accent-soft: #fdf0e9;
   --ok: #2f6f4e;
   color-scheme: light;
@@ -52,6 +55,7 @@
     --muted: #9a958a;
     --line: #33312c;
     --accent: #f08a5d;
+    --on-accent: #1b1a17;
     --accent-soft: #2a211c;
     --ok: #7bc49a;
     color-scheme: dark;
@@ -188,6 +192,36 @@ header p { margin: 0 0 26px; color: var(--muted); font-size: 15px; max-width: 62
   border-radius: 4px;
   font-size: 13px;
 }
+/* Tulosten ensimmäisten sanojen valikko. Nappirivi kasvaa hakusanan mukaan,
+   joten se rullaa pystysuunnassa eikä työnnä tuloksia alas. */
+.firsts { margin: 10px 2px 0; }
+.firsts[hidden] { display: none; }
+.firsts .lbl { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.firsts .chips {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  max-height: 108px; overflow-y: auto;
+}
+.firsts.open .chips { max-height: none; }
+.firsts .chip {
+  font: inherit; font-size: 14px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 20px;
+  padding: 3px 12px; white-space: nowrap;
+}
+/* span.chip on pelkkä tieto (vain yksi ensimmäinen sana), button.chip valinta.
+   Tieto näytetään valitun näköisenä: se on tosiasiassa se sana, jota kaikki
+   tulokset koskevat - vain valintaa ei tarvitse tehdä, kun vaihtoehtoja ei ole. */
+button.chip { cursor: pointer; }
+button.chip:hover { border-color: var(--accent); color: var(--accent); }
+/* .firsts-etuliite on tarpeen: pelkka span.chip haviaisi .firsts .chip:lle. */
+.firsts span.chip,
+button.chip[aria-pressed="true"] {
+  background: var(--accent); border-color: var(--accent); color: var(--on-accent);
+}
+.firsts .chip .n { opacity: .55; font-size: 12px; margin-left: 5px; }
+.firsts span.chip .n,
+button.chip[aria-pressed="true"] .n { opacity: .8; }
+
 .examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
 .examples button {
   font: inherit; font-size: 14px;
@@ -241,6 +275,10 @@ footer a { color: inherit; }
     </div>
   </div>
 
+  <div class="firsts" id="firsts" hidden>
+    <div class="lbl" id="firstsLbl">Rajaa ensimmäisen sanan mukaan:</div>
+    <div class="chips" id="firstsChips"></div>
+  </div>
   <div id="status">Ladataan sanastoa…</div>
   <div class="examples" id="examples"></div>
   <div class="results" id="results"></div>
@@ -257,6 +295,6 @@ footer a { color: inherit; }
   </footer>
 </div>
 <!-- ?v= on versioleima; tools/stamp_assets.py päivittää sen. -->
-<script src="app.js?v=4783a383e4"></script>
+<script src="app.js?v=6b2b196f63"></script>
 </body>
 </html>

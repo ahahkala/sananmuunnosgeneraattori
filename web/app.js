@@ -10,6 +10,9 @@ const $noProper = document.getElementById('noProper');
 const $sort = document.getElementById('sort');
 const $examples = document.getElementById('examples');
 const $clear = document.getElementById('clear');
+const $firsts = document.getElementById('firsts');
+const $firstsChips = document.getElementById('firstsChips');
+const $firstsLbl = document.getElementById('firstsLbl');
 
 const PAGE = 60;
 let ready = false;
@@ -17,6 +20,11 @@ let queryId = 0;
 let last = null;      // viimeisin vastaus
 let cur = { word: '', prefix: '' };   // viimeisimmän haun jaettu syöte
 let shown = 0;
+let firstSel = null;  // valittu tuloksen ensimmäinen sana, null = ei rajausta
+
+// Napit mahtuvat riville vain jos niitä on vähän; loput jäävät rullattavaan
+// laatikkoon, jottei valikko työnnä tuloksia sivun alalaitaan.
+const FIRSTS_MAX = 300;
 
 /* Versioleima tulee tämän skriptin omasta osoitteesta (app.js?v=...), jonka
    tools/stamp_assets.py kirjoittaa index.html:ään. Se kuljetetaan eteenpäin
@@ -60,7 +68,7 @@ function showExamples(words) {
   for (const w of words) {
     const b = document.createElement('button');
     b.textContent = w;
-    b.onclick = () => { $q.value = w; $q.focus(); run(); };
+    b.onclick = () => { $q.value = w; firstSel = null; $q.focus(); run(); };
     $examples.appendChild(b);
   }
 }
@@ -100,6 +108,7 @@ function run() {
     $results.innerHTML = '';
     $more.hidden = true;
     $hint.hidden = true;
+    $firsts.hidden = true;
     $examples.style.display = '';
     requestExamples();
     $status.innerHTML = 'Kirjoita sana yllä.';
@@ -115,6 +124,8 @@ function run() {
       noProper: $noProper.checked,
       sort: $sort.value,
       prefix: cur.prefix,
+      first: firstSel,
+      groups: true,
       compound: true,
       limit: 3000,
     },
@@ -130,6 +141,7 @@ function render(m) {
   shown = 0;
   $results.innerHTML = '';
   $hint.hidden = true;
+  $firsts.hidden = true;
 
   if (m.error === 'short') {
     $status.textContent = 'Anna vähintään kaksi kirjainta.';
@@ -152,12 +164,22 @@ function render(m) {
     ? ''
     : ' <span class="warn">(sanaa ei löydy sanastosta – tulokset perustuvat silti sen alkuun ja loppuun)</span>';
 
+  // Rajaus voi tyhjentää listan, kun jokin muu valinta on kaventanut osumia sen
+  // jälkeen kun nappi valittiin. Valikko jää näkyviin, jotta rajauksen purkaa.
+  if (!m.total && firstSel) {
+    $status.innerHTML = 'Ei sananmuunnosta sanalle <b>' + esc(q) +
+      '</b>, jonka ensimmäinen sana on <b>' + esc(firstSel) + '</b>.' + known;
+    $more.hidden = true;
+    renderFirsts(m.groups);
+    return;
+  }
   if (!m.total && prefix) {
     $status.innerHTML = 'Ei sananmuunnosta sanalle <b>' + esc(q) +
       '</b>, jonka toinen sana alkaa <b>' + esc(prefix) + '</b>.' + known;
     $more.hidden = true;
     $hint.hidden = false;
     $hint.innerHTML = 'Kokeile lyhyempää alkua tai poista jälkimmäinen sana kentästä.';
+    renderFirsts(m.groups);
     return;
   }
   if (!m.total) {
@@ -167,6 +189,7 @@ function render(m) {
     $hint.innerHTML = 'Kokeile toista taivutusmuotoa – esimerkiksi <code>' +
       esc(q) + 'a</code> tai <code>' + esc(q) + 'n</code>. Sananmuunnos vaatii, ' +
       'että molemmista sanoista tulee vaihdon jälkeen oikea suomen sana.';
+    renderFirsts(m.groups);
     return;
   }
 
@@ -179,7 +202,8 @@ function render(m) {
         '</b> sisältää sopimattoman sanan'
       : ' – <span class="warn">ei yhtään sopimatonta sanaa</span>';
   }
-  const filt = prefix ? ', joiden toinen sana alkaa <b>' + esc(prefix) + '</b>' : '';
+  let filt = prefix ? ', joiden toinen sana alkaa <b>' + esc(prefix) + '</b>' : '';
+  if (firstSel) filt += ', joiden ensimmäinen sana on <b>' + esc(firstSel) + '</b>';
   if (m.compound) {
     // Muunnos on tehty yhdyssanan alkuosalle ja loppuosa liitetty takaisin,
     // joten tuloksen ensimmäinen sana on koottu - sitä ei ole sanastossa.
@@ -189,12 +213,64 @@ function render(m) {
       ' <span style="opacity:.6">(' + m.ms + ' ms)</span><br>' +
       '<span class="warn">Loppuosa liitetään takaisin sellaisenaan, joten tuloksen ' +
       'ensimmäinen sana on koottu yhdyssana – sitä ei ole tarkistettu sanastosta.</span>';
+    renderFirsts(m.groups);
     appendMore();
     return;
   }
   $status.innerHTML = '<b>' + m.total.toLocaleString('fi-FI') + '</b> sananmuunnosta sanalle <b>' +
     esc(q) + '</b>' + filt + extra + ' <span style="opacity:.6">(' + m.ms + ' ms)</span>' + known;
+  renderFirsts(m.groups);
   appendMore();
+}
+
+/* Tulosten ensimmäiset sanat valikkona. Worker laskee ryhmät koko osumajoukosta
+   ennen rajausta, joten valikko pysyy samana myös valinnan ollessa päällä -
+   muuten yhden sanan valinta jättäisi jäljelle vain sen oman napin. */
+function renderFirsts(groups) {
+  if (!groups || !groups.length) {
+    $firsts.hidden = true;
+    return;
+  }
+  // Yhden ryhmän lista näytetään sekin: "olavi" tuottaa tuhansia pareja, mutta
+  // ensimmäinen sana on niissä kaikissa "alavi" - se on tulos sinänsä. Silloin
+  // ei ole mitään rajattavaa: nappi on pelkkä tieto, ei valinta, joten se ei
+  // reagoi klikkaukseen eikä kaikki-nappia tarvita purkamaan mitään.
+  const one = groups.length < 2;
+  $firstsLbl.textContent = one
+    ? 'Ensimmäinen sana on kaikissa tuloksissa sama:'
+    : 'Rajaa ensimmäisen sanan mukaan:';
+  const frag = document.createDocumentFragment();
+  if (!one) frag.appendChild(chip('kaikki', groups.reduce((a, g) => a + g.n, 0), null));
+  for (const g of groups.slice(0, FIRSTS_MAX)) {
+    frag.appendChild(one ? chip(g.w, g.n) : chip(g.w, g.n, g.w));
+  }
+  $firstsChips.innerHTML = '';
+  $firstsChips.appendChild(frag);
+  $firsts.hidden = false;
+}
+
+/* Nappi ilman value-argumenttia on pelkkä tieto: se ei ole valittavissa eikä
+   nappaa nappulanavigointia. value === null on eri asia - se on kaikki-nappi,
+   joka purkaa rajauksen. */
+function chip(label, n, value) {
+  const info = arguments.length < 3;
+  const b = document.createElement(info ? 'span' : 'button');
+  b.className = 'chip';
+  if (!info) b.type = 'button';
+  b.textContent = label;
+  const c = document.createElement('span');
+  c.className = 'n';
+  c.textContent = n;
+  b.appendChild(c);
+  if (info) return b;
+  b.setAttribute('aria-pressed', String(firstSel === value));
+  // Saman napin painaminen uudelleen purkaa rajauksen.
+  b.onclick = () => {
+    firstSel = firstSel === value ? null : value;
+    clearTimeout(timer);
+    run();
+  };
+  return b;
 }
 
 function appendMore() {
@@ -234,6 +310,7 @@ function applyHash() {
   const h = decodeURIComponent(location.hash.slice(1)).trim();
   if (h.toLowerCase() === $q.value.trim().toLowerCase()) return !!h;
   $q.value = h;
+  firstSel = null;
   clearTimeout(timer);
   run();
   return !!h;
@@ -242,16 +319,19 @@ function applyHash() {
 window.addEventListener('hashchange', applyHash);
 
 $more.onclick = appendMore;
-$q.addEventListener('input', () => { syncClear(); schedule(); });
+$q.addEventListener('input', () => { firstSel = null; syncClear(); schedule(); });
 
 /* Tyhjennys palauttaa sivun alkutilaan: run() tyhjalla kentalla nollaa
    tulokset, osoitepalkin #-osan ja tuo esimerkit takaisin. */
 $clear.addEventListener('click', () => {
   $q.value = '';
+  firstSel = null;
   clearTimeout(timer);
   $q.focus();
   run();
 });
-$onlyBase.addEventListener('change', run);
+// Järjestys ei muuta osumajoukkoa, joten rajaus säilyy. Suodattimet sen sijaan
+// voivat pudottaa valitun sanan kokonaan pois, joten valinta puretaan.
 $sort.addEventListener('change', run);
-$noProper.addEventListener('change', run);
+$onlyBase.addEventListener('change', () => { firstSel = null; run(); });
+$noProper.addEventListener('change', () => { firstSel = null; run(); });
